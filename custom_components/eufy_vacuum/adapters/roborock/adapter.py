@@ -284,9 +284,37 @@ def register_roborock_adapter_for_vacuum(
     # hardware that is not there. Offering a control that does nothing is the worse
     # failure (the same reasoning model_catalog gives for has_path_control).
     dock = dock_profile(hass, vid)
+    # ISSUE #69 follow-up: record WHICH BRANCH RAN, not just its outcome.
+    #
+    # The dump used to carry the three booleans and nothing else, and the two branches
+    # below can produce the same booleans for opposite reasons — a live probe that
+    # resolved a no-dock machine looks identical to a probe that declined and fell back
+    # to a catalogue default that also says no dock. Establishing which had happened on
+    # a real report (#69, an uncatalogued a328) took reading the catalogue to find that
+    # `generic` declares has_dock False, and reasoning backwards from the fact that the
+    # controls were populated at all. That is a derivation a maintainer should not have
+    # to repeat, and it only worked because the fallback happened to disagree.
+    #
+    # Leading underscore, like `_entity_candidates` below: adapter-internal bookkeeping
+    # a stored or YAML adapter could never declare for itself (the dock type is detected
+    # at runtime), so it is deliberately NOT part of the user-facing schema surface.
+    _dock_detection: dict[str, Any] = {}
     if dock is None:
         has_dock = bool(profile["has_dock"])
         dock_washable = dock_dryable = dock_collectable = has_dock
+        # "undetermined", not a cause. `dock_profile`'s contract is that None means
+        # unknowable; today its only None path is a missing python-roborock, but naming
+        # that here would be an inference about the callee that goes stale silently if
+        # it ever grows a second one. The REASON lives in dock.py; what this records is
+        # that the live answer was declined and the catalogue default is what you see.
+        _dock_detection = {
+            "resolved": False,
+            "source": "model_catalog",
+            "catalog_family": profile["family"],
+            "dock_type": None,
+            "dock_type_name": None,
+            "reason": "undetermined",
+        }
     else:
         has_dock = bool(dock["has_dock"])
         # Each control asks the vendor the question it actually depends on rather than
@@ -296,6 +324,17 @@ def register_roborock_adapter_for_vacuum(
         dock_washable = bool(dock.get("is_washable", has_dock))
         dock_dryable = bool(dock.get("is_dryable", has_dock))
         dock_collectable = bool(dock.get("is_collectable", has_dock))
+        _dock_detection = {
+            "resolved": True,
+            "source": "device",
+            "catalog_family": profile["family"],
+            "dock_type": dock.get("dock_type"),
+            "dock_type_name": dock.get("dock_type_name"),
+            # From dock.py: no_dock_device / model_id_unknown /
+            # dock_type_newer_than_library, or absent when the vendor table answered
+            # in full. Absent is the success case and is reported as None.
+            "reason": dock.get("reason"),
+        }
         _LOGGER.debug(
             "%s: dock resolved for %s — type=%s (%s) has_dock=%s wash=%s dry=%s collect=%s%s",
             ADAPTER_ID, vid, dock.get("dock_type"), dock.get("dock_type_name"),
@@ -1386,6 +1425,9 @@ def register_roborock_adapter_for_vacuum(
         # rule live in __init__.py and must not be re-derived downstream.
         "_entity_overrides": dict(entity_overrides or {}),
         "_reserved_suffixes": list(ALL_SUFFIXES),
+        # ISSUE #69 follow-up — how the dock answer above was arrived at. See the
+        # comment at its construction for why the BRANCH, not just the booleans.
+        "_dock_detection": _dock_detection,
     }
 
     register_adapter_config(vacuum_entity_id, config)

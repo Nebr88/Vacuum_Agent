@@ -1068,6 +1068,28 @@ def _vacuum_diagnostics(
     except Exception:  # pragma: no cover - defensive
         pass
 
+    # How the dock answer above was REACHED, when the brand records it (ISSUE #69
+    # follow-up). `dock_controls` shows the outcome; two different branches can
+    # produce the same outcome for opposite reasons — a live probe that resolved a
+    # no-dock machine, and a probe that declined and fell back to a catalogue default
+    # that also says no dock. Reading it off a real report meant reasoning backwards
+    # through the catalogue, and that only worked because the fallback happened to
+    # disagree with the live answer.
+    #
+    # Core owns the KEY and holds no opinion on the values: a brand that records
+    # nothing simply has no block here, and the brand's own vocabulary (dock type
+    # codes and names) passes through untouched.
+    try:
+        from .adapters.registry import get_adapter_config as _get_cfg_for_dock
+
+        _dock_detection = (
+            _get_cfg_for_dock(vacuum_entity_id) or {}
+        ).get("_dock_detection")
+        if isinstance(_dock_detection, dict) and _dock_detection:
+            out["dock_detection"] = dict(_dock_detection)
+    except Exception:  # pragma: no cover - defensive
+        pass
+
     # Raw provider vacuum entity — state + the attributes discovery reads.
     v_state = hass.states.get(vacuum_entity_id)
     if v_state is None:

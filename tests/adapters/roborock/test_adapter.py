@@ -1257,3 +1257,109 @@ def test_rd3_a_vacuum_with_no_dock_device_resolves_to_none(hass):
     )
 
     assert rb_dock.find_dock_device(hass, vac.entity_id) is None
+
+
+# ---------------------------------------------------------------------------
+# [DD-*] ISSUE #69 follow-up — the dock dump records WHICH BRANCH ran
+# ---------------------------------------------------------------------------
+
+def _register_with_dock(monkeypatch, hass, dock_result):
+    """Register the adapter with `dock_profile` forced, and return the stored config."""
+    from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
+
+    _patch_device(monkeypatch)
+    monkeypatch.setattr(rb, "dock_profile", lambda h, v: dock_result)
+    clear_registry()
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    return get_adapter_config(_RVAC) or {}
+
+
+def test_dd1_an_undetermined_dock_records_the_catalogue_fallback(monkeypatch, hass):
+    """[DD-1] `dock_profile` declining must be visible AS a decline.
+
+    ABLATION: hard-code `"resolved": True` in the fallback branch and this goes red.
+    """
+    dd = _register_with_dock(monkeypatch, hass, None).get("_dock_detection")
+
+    assert dd, "the block must be recorded even when the live probe declined"
+    assert dd["resolved"] is False
+    assert dd["source"] == "model_catalog"
+    assert dd["reason"] == "undetermined"
+    assert dd["dock_type"] is None and dd["dock_type_name"] is None
+
+
+def test_dd2_a_resolved_dock_carries_the_vendors_own_answer(monkeypatch, hass):
+    """[DD-2] The vendor's code and name reach the dump verbatim.
+
+    `dock_type_name` is the vendor's enum name, quoted as it is produced rather than
+    prettified — it is what gets pasted into an upstream issue.
+
+    ABLATION: drop `dock_type`/`dock_type_name` from the resolved branch -> red.
+    """
+    dd = _register_with_dock(monkeypatch, hass, {
+        "has_dock": True, "dock_type": 7, "dock_type_name": "o4_dock",
+        "is_washable": True, "is_dryable": True, "is_collectable": True,
+    }).get("_dock_detection")
+
+    assert dd["resolved"] is True
+    assert dd["source"] == "device"
+    assert dd["dock_type"] == 7
+    assert dd["dock_type_name"] == "o4_dock"
+    assert dd["reason"] is None, "a fully resolved profile carries no reason"
+
+
+def test_dd3_two_no_dock_answers_with_opposite_causes_are_distinguishable(
+    monkeypatch, hass
+):
+    """[DD-3] THE case the block exists for, and the one that forces `resolved`.
+
+    A live probe that resolved a genuinely dockless machine and a probe that DECLINED
+    and fell back to a catalogue default that also says no dock produce identical
+    capabilities — `supports_mop_wash` / `_dry` / `_empty` all False either way. Before
+    this block the dump could not tell them apart, and on ISSUE #69 establishing which
+    had happened meant reading the model catalogue and reasoning backwards from the
+    fact that the controls were populated at all. That only worked because the
+    fallback happened to DISAGREE with the live answer; where they agree, as here,
+    there was nothing to reason from.
+
+    ABLATION: record only `dock_type`/`dock_type_name` and drop `resolved`/`source` —
+    both sides become `{None, None}` and this goes red, which is precisely the dump
+    that could not answer #69.
+    """
+    declined = _register_with_dock(monkeypatch, hass, None)
+    live_no_dock = _register_with_dock(monkeypatch, hass, {
+        "has_dock": False, "dock_type": None, "dock_type_name": None,
+        "reason": "no_dock_device",
+    })
+
+    # The outcome really is identical — the premise of the test, asserted not assumed.
+    assert declined["capabilities"]["supports_mop_wash"] is False
+    assert live_no_dock["capabilities"]["supports_mop_wash"] is False
+    assert not declined.get("dock_events", {}).get("action_controls")
+    assert not live_no_dock.get("dock_events", {}).get("action_controls")
+
+    a, b = declined["_dock_detection"], live_no_dock["_dock_detection"]
+    assert a != b, "identical outcomes, opposite causes — the dump must separate them"
+    assert (a["resolved"], a["source"]) == (False, "model_catalog")
+    assert (b["resolved"], b["source"]) == (True, "device")
+    assert b["reason"] == "no_dock_device"
+
+
+def test_dd4_a_dock_newer_than_the_library_keeps_its_code(monkeypatch, hass):
+    """[DD-4] The case where the fine detail is unknown but the dock is real.
+
+    `dock.py` returns has_dock True with a numeric type and no NAME for a dock newer
+    than the installed python-roborock. That integer is the whole lead for adding it,
+    so losing it to the unnamed case would discard the one actionable value.
+
+    ABLATION: blank `dock_type` whenever `dock_type_name` is None -> red.
+    """
+    dd = _register_with_dock(monkeypatch, hass, {
+        "has_dock": True, "dock_type": 99, "dock_type_name": None,
+        "reason": "dock_type_newer_than_library",
+    }).get("_dock_detection")
+
+    assert dd["dock_type"] == 99
+    assert dd["dock_type_name"] is None
+    assert dd["reason"] == "dock_type_newer_than_library"

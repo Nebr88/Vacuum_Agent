@@ -56,6 +56,11 @@ it bought was never load-bearing — the duid is the robot's own id, so the suff
 already excludes every other robot's dock. `[RD-2]` now pins that claim directly, with both
 robots in the **same** entry, which the old scoping could not have distinguished.
 
+How that resolution went is recorded on the config as `_dock_detection` — `resolved` and `source`
+(the live device, or the catalogue fallback), plus the vendor's `dock_type` / `dock_type_name` and
+`dock.py`'s own `reason`. It exists because the three booleans alone cannot say which branch ran:
+see [40 §1](40-diagnostics-and-evidence.md).
+
 Three cheaper probes were each tried against real hardware and each measured wrong:
 
 | probe | why it fails |

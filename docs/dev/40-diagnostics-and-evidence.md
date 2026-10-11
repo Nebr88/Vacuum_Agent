@@ -38,6 +38,24 @@ Existence therefore establishes the transport independently of any value, and a 
 after reading the upstream source. Check the upstream before assuming a presence test is the
 careless copy of a value test.
 
+**An outcome does not imply the branch that produced it.** `dock_controls` reports which dock
+actions resolved; `dock_detection` reports how that answer was reached, and the two are not
+redundant. A live probe that resolved a genuinely dockless machine and a probe that DECLINED and
+fell back to a catalogue default also saying no dock produce byte-identical controls and
+capabilities. On issue #69 — an uncatalogued `roborock.vacuum.a328` — establishing which had
+happened meant reading `model_catalog.py` to find that `generic` declares `has_dock: False` and
+reasoning backwards from the fact that the controls were populated at all. That derivation only
+worked because the fallback happened to *disagree* with the live answer; where they agree there is
+nothing to reason from. `resolved` and `source` are what carry it, and `[DD-3]` is the test that
+forces them to exist by asserting the two causes stay distinguishable while every outcome matches.
+
+Core owns the key and holds no opinion on the values. The brand fills `_dock_detection` in its own
+config (underscore-prefixed: adapter-internal, not a surface a stored or YAML adapter could ever
+declare for itself, since the dock type is detected at runtime), the vendor's own codes and names
+pass through untouched, and a brand that records nothing has **no key at all** rather than an
+empty one — `{}` would read as *we looked and found nothing*, which is a claim. Same distinction
+`_known_map_ids` draws between `None` and an empty set.
+
 ⚠ **The dashboard snapshot is deliberately excluded**, and the reason is the important part:
 computing it can advance room timing and fire room-transition events during a live clean. A
 diagnostics download has to stay **read-only**, because a support tool that perturbs the run it is

@@ -1378,3 +1378,63 @@ def test_diag21b_a_real_wrong_value_still_reads_as_misbound():
     )
     joined = " | ".join(_self_check(out)["warnings"])
     assert "bound to the wrong entity" in joined
+
+
+async def test_diag22_the_dock_branch_reaches_the_dump(hass):
+    """[DIAG-22] ISSUE #69 follow-up — `dock_detection` surfaces when a brand records it.
+
+    `dock_controls` reports the OUTCOME. This reports how it was reached, which the
+    outcome cannot imply: a live probe that resolved a dockless machine and a probe
+    that declined and fell back to a catalogue default saying the same thing produce
+    identical controls. [DD-3] pins that the two are distinguishable at the adapter;
+    this pins that the distinction actually travels to the artifact a maintainer reads.
+
+    ABLATION: delete the `dock_detection` block in diagnostics.py and this goes red.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    register_adapter_config(VACUUM, {
+        "adapter_id": "roborock", "source": "code",
+        "_dock_detection": {
+            "resolved": True, "source": "device", "catalog_family": "generic",
+            "dock_type": 7, "dock_type_name": "o4_dock", "reason": None,
+        },
+    })
+    hass.states.async_set(VACUUM, "docked")
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    dd = diag["vacuums"][0].get("dock_detection")
+
+    assert dd is not None, "the block the brand recorded never reached the dump"
+    assert dd["resolved"] is True and dd["source"] == "device"
+    assert dd["dock_type"] == 7 and dd["dock_type_name"] == "o4_dock"
+    assert dd["catalog_family"] == "generic"
+
+
+async def test_diag22b_a_brand_that_records_nothing_gets_no_block(hass):
+    """[DIAG-22b] Core holds no opinion: absent means absent, not an empty shell.
+
+    An empty `dock_detection: {}` would read as "we looked and found nothing", which is
+    a claim. A brand that does not record this has not looked, and the honest dump says
+    so by having no key — the same distinction `_known_map_ids` draws between None and
+    an empty set.
+
+    ABLATION: drop the `and _dock_detection` truthiness guard, or emit the key
+    unconditionally, and this goes red.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    register_adapter_config(VACUUM, {"adapter_id": "eufy", "source": "code"})
+    hass.states.async_set(VACUUM, "docked")
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+
+    assert "dock_detection" not in diag["vacuums"][0]

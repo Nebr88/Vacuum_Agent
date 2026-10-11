@@ -564,7 +564,7 @@ filter weakened to a type check would report it as a clean order continuously.
 | `eufy/maintenance_components.py` | 1 | 100% | `test_maintenance_config.py` | adapter | clean |
 | `eufy/eufy_upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/upkeep_guides_i18n/*.py` (17 languages) | 19 | 100% | `test_upkeep_guides_i18n.py` | adapter |
-| `roborock/adapter.py` | 85 | 98% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/adapter.py` | 88 | 98% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/model_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/vocabulary.py` | 19 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/entities.py` | 27 | 100% | `roborock/test_adapter.py` | adapter | - |
@@ -663,6 +663,15 @@ brand-agnostic — see [06 — learning](06-learning.md)):
   "unknown / unavailable / no" the transport-only heuristic produced (`DIAG-9`); and
   degrades to a generic "native integration" + map-"pending" summary when the raw map
   hasn't decoded yet and the brand string is absent (`DIAG-10`).
+- **Dock detection provenance** (`DD-1`–`DD-4` in `roborock/test_adapter.py`, `DIAG-22`
+  / `DIAG-22b` in `test_diagnostics.py`) — ISSUE #69 follow-up. `DD-3` is the load-bearing
+  one and the reason the block has `resolved`/`source` at all: it asserts that a live
+  probe resolving a dockless machine stays distinguishable from a probe that DECLINED
+  and fell back to a catalogue default saying the same thing, *while asserting every
+  outcome matches* — identical `supports_mop_wash` and no `action_controls` on both
+  sides. Recording only the dock type would make both `{None, None}` and that test goes
+  red. `DIAG-22b` pins the absent-vs-empty distinction: a brand that records nothing
+  gets no key, because `{}` claims we looked.
 - **Every adapter test file needs `hass`** for the config-registration seam —
   see [01 — overview](../01-overview.md) for which files and why.
 
