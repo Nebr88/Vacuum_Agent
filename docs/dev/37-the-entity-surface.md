@@ -23,6 +23,37 @@ Entities are push-driven, not polled — they subscribe to the manager's notific
 
 ---
 
+## 1a. One question spans two incompatible HA cores
+
+`entity_helpers.py::device_config_entry_ids` answers *"which config entries own this device?"*,
+and exists because the supported cores disagree about where that answer lives — in a way where
+**neither attribute name is correct on its own**.
+
+| HA core | the answer | the other name |
+|---|---|---|
+| 2025.6.0 – 2026.7.0 | `DeviceEntry.config_entries`, a real field | `config_entry_id` does not exist on the class; reading it raises |
+| 2026.8.0 onward | `DeviceEntry.config_entry_id`, a real field | `config_entries` is a property that reports its caller as deprecated; removed in 2027.10 |
+
+`hacs.json` declares a 2025.6.0 floor, so the one-line swap HA's own deprecation warning asks for
+(ISSUE #69) is an `AttributeError` for every install from the floor through 2026.7. The helper
+reads the new name first — that is what silences the warning — and falls back, which is what keeps
+the old cores working.
+
+**The composite-device branch is the part that is not obvious.** On a pre-migration composite that
+HA synthesizes on demand, `config_entries` spans the splits while `config_entry_id` names only one
+of them, so preferring the new name would silently narrow a multi-entry device. There the old name
+is correct, and free: the property skips its deprecation report when `is_composite_device` is true.
+
+The version table above is measured, not assumed — the wheels for 2025.6.0, 2025.12.0, 2026.3.0,
+2026.6.0, 2026.7.0, 2026.8.0 and 2026.10.1 were unpacked and `device_registry.py` read in each.
+`[DCE-5]` is the test that would notice a third rename, and it took two attempts to write: the
+first asserted the returned id and **stayed green under ablation**, because a misspelt attribute
+falls through to the deprecated property and arrives at the same answer. What a rename changes is
+not the answer but which door we go through, so the test spies on
+`_report_deprecated_config_entries_property` and asserts it is never called.
+
+---
+
 ## 2. A room entity's id is deliberately one-way
 
 `entity_helpers.py::make_room_unique_id` joins the vacuum key, the map id, the room id and a suffix

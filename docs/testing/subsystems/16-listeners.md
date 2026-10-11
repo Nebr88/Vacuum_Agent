@@ -5,7 +5,7 @@ lifecycle (auto-finalize), job-progress ticks, job-metrics watch maps,
 dock-events, path-blockers (mid-job rule re-evaluation), discovery passes,
 pause-timeout escalation, and pose sampling (external-run pose time-series
 capture for room auto-attribution) — plus the registration/teardown plumbing.
-Covered by **274 tests across 13 integration files**, with the pose sampler
+Covered by **279 tests across 13 integration files**, with the pose sampler
 covered separately by `tests/unit/test_pose_sampler.py` (24 tests) — 191
 cases total.
 
@@ -26,15 +26,15 @@ Architecture reference: [19 — The Event Ingress Layer](../../dev/19-event-ingr
 | `job_metrics.py` | 98 | 94% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration | **bare x28** |
 | `stall_capture.py` | 160 | 87% | `tests/unit/test_stall_capture_listener.py`, `tests/unit/test_receipts_criterion.py`, `tests/unit/test_receipts_happy_path.py`, `tests/unit/test_receipts_concurrency.py` | unit (pure helpers, the decline paths, the whole chain, and two chains at once) | clean |
 | `receipts/` | new | — | `tests/unit/test_receipts.py` | unit | clean |
-| `dock_events.py` | 65 | 92% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration | **bare x28** |
+| `dock_events.py` | 84 | 93% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration | **bare x28** |
 | `discovery.py` | 83 | 99% | `test_listeners_timers.py` | integration | clean |
 | `entity_rename.py` | 47 | 89% | `tests/unit/test_listeners_entity_rename.py` | unit | spec'd |
 | `core/manager.py` (D4 migration) | new | — | `tests/unit/test_manager_entity_rename_migration.py` | unit | clean |
 | `pause_timeout.py` | 89 | 95% | `test_listeners_timers.py` | integration | clean |
 | `clean_order_refresh.py` | 54 | 96% | `test_listeners_registration.py` | integration | spec'd |
-| `_common.py` | 80 | 91% | `test_listeners_common.py` | integration | clean |
+| `_common.py` | 81 | 91% | `test_listeners_common.py` | integration | clean |
 | `job_progress.py` | 48 | 92% | `test_listeners_active.py` | integration | **bare x28** |
-| `pose_sampler.py` | 165 | 91% | `test_pose_sampler.py` (unit) | unit | **bare x5** |
+| `pose_sampler.py` | 142 | 94% | `test_pose_sampler.py` (unit) | unit | **bare x5** |
 
 **Two gates, and neither alone is sufficient — demonstrated, not assumed.**
 `scripts/check_receipts.py` is a static AST scan: it proves a receipt's call site EXISTS and

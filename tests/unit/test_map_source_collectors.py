@@ -15,6 +15,7 @@ These assert the documented return shape ``[(origin_label, key, root_obj), ...]`
 exact tuples the introspectors consume — not merely "doesn't crash".
 """
 from custom_components.eufy_vacuum.mapping.map_source_runtime import (
+    dreame_coordinator,
     eufy_inmem_candidates,
     image_entity_object,
     roborock_candidates,
@@ -332,3 +333,91 @@ def test_image_entity_object_component_without_get_entity():
 
     hass = _Hass(data={"entity_components": {"image": _NoGetEntity()}})
     assert image_entity_object(hass, "image.ivy_map") is None
+
+
+# ---------------------------------------------------------------------------
+# [MSC-4] dreame_coordinator — route 1, the device -> config entry hop
+#
+# ISSUE #69 changed this hop from `device.config_entries` (deprecated in HA 2026.8,
+# removed in 2027.10) to `device_config_entry_ids`. The function had NO tests, and its
+# body is wrapped in a blanket `except Exception` — so a hop that raised, or returned
+# nothing, would be swallowed and the "exactly one coordinator loaded" fallback would
+# answer instead. The tests below therefore load TWO coordinators, which disables that
+# fallback: anything that reaches it returns None and the test fails.
+# ---------------------------------------------------------------------------
+
+_DREAME = "dreame_vacuum"
+
+
+class _Coord:
+    def __init__(self, name):
+        self.device = object()
+        self.name = name
+
+
+def _two_dreame_entries(hass):
+    """A real device + entity registry with TWO loaded dreame coordinators.
+
+    Returns (vacuum_entity_id, wanted_coordinator). The second coordinator exists only
+    to make the single-coordinator fallback decline, so route 1 has to do the work.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    mine = MockConfigEntry(domain=_DREAME, entry_id="msc4_mine")
+    mine.add_to_hass(hass)
+    other = MockConfigEntry(domain=_DREAME, entry_id="msc4_other")
+    other.add_to_hass(hass)
+
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=mine.entry_id, identifiers={(_DREAME, "msc4_duid")},
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", _DREAME, "msc4_uid",
+        suggested_object_id="msc4", device_id=device.id, config_entry=mine,
+    )
+
+    wanted = _Coord("mine")
+    hass.data[_DREAME] = {mine.entry_id: wanted, other.entry_id: _Coord("other")}
+    return vac.entity_id, wanted, device
+
+
+def test_msc4_route1_resolves_the_entry_that_owns_the_device(hass):
+    """[MSC-4] With two coordinators loaded, only the device's own entry can answer.
+
+    ABLATION: make `device_config_entry_ids` return an empty set and this goes red —
+    the fallback declines at two coordinators, so there is nothing to mask the break.
+    """
+    vacuum_entity_id, wanted, _ = _two_dreame_entries(hass)
+
+    got = dreame_coordinator(hass, vacuum_entity_id, None, _DREAME)
+
+    assert got is wanted, "route 1 must pick the entry the device belongs to"
+
+
+def test_msc4b_route1_emits_no_deprecation_report(hass):
+    """[MSC-4b] The hop must not go through the deprecated property.
+
+    The returned coordinator is the same either way, so the ANSWER cannot tell the two
+    code paths apart — only the report can. `_report_deprecated_config_entries_property`
+    is what prints the warning ISSUE #69 was filed about.
+
+    ABLATION: put `device.config_entries` back in `dreame_coordinator` and this goes
+    red while [MSC-4] stays green.
+    """
+    from homeassistant.helpers import device_registry as dr
+
+    vacuum_entity_id, wanted, _ = _two_dreame_entries(hass)
+
+    reports = []
+    original = dr._report_deprecated_config_entries_property
+    dr._report_deprecated_config_entries_property = (
+        lambda *a, **k: reports.append(a) or original(*a, **k)
+    )
+    try:
+        got = dreame_coordinator(hass, vacuum_entity_id, None, _DREAME)
+    finally:
+        dr._report_deprecated_config_entries_property = original
+
+    assert got is wanted
+    assert reports == [], f"deprecated property read on the dreame hop: {reports}"

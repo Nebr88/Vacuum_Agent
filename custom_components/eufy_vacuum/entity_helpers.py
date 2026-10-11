@@ -42,6 +42,54 @@ def is_blank_state(value: Any) -> bool:
     return str(value).strip().lower() in BLANK_STATE_VALUES
 
 
+def device_config_entry_ids(device: Any) -> set[str]:
+    """The config entry ids a device-registry entry belongs to.
+
+    THE question — "which config entries own this device?" — because the HA cores this
+    integration supports disagree about where the answer lives, and NEITHER attribute
+    name spans the supported range on its own.
+
+    MEASURED, not assumed. The wheels for 2025.6.0, 2025.12.0, 2026.3.0, 2026.6.0,
+    2026.7.0, 2026.8.0 and 2026.10.1 were unpacked and `device_registry.py` read:
+
+    - **through 2026.7.0** `DeviceEntry.config_entries` is a real ``attr.ib`` field and
+      ``config_entry_id`` does not exist on the class at all. Reading it raises.
+    - **from 2026.8.0** ``config_entry_id`` is the field, and ``config_entries`` becomes
+      a property that reports its caller as deprecated. Scheduled for removal in 2027.10.
+
+    `hacs.json` declares a 2025.6.0 floor, so the one-line swap the deprecation warning
+    asks for (ISSUE #69) would be an AttributeError for every install from the floor
+    through 2026.7. Reading the NEW name first is what silences the warning on cores
+    that have it; falling back is what keeps the old ones working.
+
+    COMPOSITE DEVICES ARE THE EXCEPTION, and they are why this is not a one-liner. On a
+    pre-migration composite that HA synthesizes on demand, ``config_entries`` spans the
+    splits while ``config_entry_id`` names just one of them, so preferring the new name
+    would silently narrow a multi-entry device to a single entry. There the OLD name is
+    the correct answer, and it is free: the property skips its deprecation report when
+    `is_composite_device` is true (`device_registry.py` L435 at 2026.10.1), because the
+    core knows the new name cannot answer for that shape. `is_composite_device` is
+    itself 2026.10+, so the getattr default carries every earlier core.
+
+    Returns an empty set for a device that answers to neither — a future core that
+    renames both, or a test double. Callers iterate the result, so empty degrades to
+    "found nothing" rather than raising inside a registry walk.
+
+    FALSY IDS ARE DROPPED, not passed on. The contract is "ids you can look an entry up
+    by", and ``""`` is not one: a caller would hand it to ``async_get_entry``, get None,
+    and have no way to tell that from a device legitimately owned by nothing. [DCE-4]
+    names the shape — it caught this returning ``{""}``.
+    """
+    if getattr(device, "is_composite_device", False):
+        composite = getattr(device, "config_entries", None)
+        return {eid for eid in composite if eid} if composite else set()
+    entry_id = getattr(device, "config_entry_id", None)
+    if entry_id:
+        return {entry_id}
+    entries = getattr(device, "config_entries", None)
+    return {eid for eid in entries if eid} if entries else set()
+
+
 def normalize_map_id(value: Any) -> str:
     """The canonical form of a map id, for both STORING one and LOOKING one up.
 

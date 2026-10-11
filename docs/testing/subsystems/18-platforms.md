@@ -26,16 +26,16 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` | clean |
 | `sensor/room_rule_status.py` | 19 | 100% | `test_sensor_remaining.py` | clean |
 | `sensor/map_overlays.py` | 57 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) | clean |
-| `button.py` | 139 | 89% | `test_button_entity.py` | **bare x1** |
-| `number.py` | 129 | 98% | `test_number_entity.py` | clean |
+| `button.py` | 143 | 88% | `test_button_entity.py` | **bare x1** |
+| `number.py` | 133 | 96% | `test_number_entity.py` | clean |
 | `switch.py` | 95 | 84% | `test_switch_entity.py` | clean |
 | `binary_sensor.py` | 65 | 91% | `test_platform_files.py` | **bare x8** |
-| `room_entities.py` | 93 | 98% | `test_platform_files.py` | **bare x8** |
+| `room_entities.py` | 95 | 98% | `test_platform_files.py` | **bare x8** |
 | `config_flow.py` | 90 | 71% | `test_config_flow.py` | clean |
 | `timestamp_utils.py` | 38 | 98% | `test_timestamp_utils.py` (unit) | clean |
 | `models/models.py` | 124 | 98% | `test_models.py` (unit) | clean |
 | `maps/map_manager.py` | 93 | 94% | `test_maps_map_manager.py` (unit) | clean |
-| `entity_helpers.py` | 61 | 99% | `test_platform_files.py` | **bare x8** |
+| `entity_helpers.py` | 72 | 99% | `test_platform_files.py` | **bare x8** |
 | `_frontend_url.py` | 18 | 89% | `test_platform_files.py` | **bare x8** |
 
 ---
@@ -60,6 +60,15 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 - **Config flow** — the entry creation flow.
 - **Helpers + data layer** (unit) — timestamp parsing, the dataclass models, the
   map-manager persistence, device-info builder.
+- **HA-core compatibility** (`DCE-*`, unit, `test_device_config_entry_ids.py`) —
+  `entity_helpers.device_config_entry_ids`, the one question whose answer moved
+  between `DeviceEntry.config_entries` and `DeviceEntry.config_entry_id` in HA
+  2026.8 ([37 §1a](../../dev/37-the-entity-surface.md), ISSUE #69). The installed
+  core can only ever present ONE of the two shapes, so `DCE-1`–`DCE-4` pin the
+  branches against hand-built doubles and `DCE-5` is the single case built from
+  the real class. The doubles RECORD rather than raise: one caller
+  (`dreame_coordinator`) wraps its body in a blanket `except Exception`, where a
+  raising stub is swallowed and proves nothing.
 
 ---
 

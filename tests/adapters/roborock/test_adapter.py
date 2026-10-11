@@ -1150,3 +1150,110 @@ def test_ms7_no_profile_declares_the_dead_segments_key(monkeypatch, hass):
             f"{name}: {offenders} declare supports_segments, which nothing reads — "
             "wire it to a consumer or leave it out; do not re-add a dead authority"
         )
+
+
+def test_rd1_find_dock_device_resolves_by_identifier_on_a_real_registry(hass):
+    """[RD-1] ISSUE #69 — the lookup itself, against a REAL device registry.
+
+    `find_dock_device` had no test. Every existing dock test stubs it out and asserts
+    on what `dock_profile` does with the result, so the registry walk the deprecation
+    warning pointed at was never executed by the suite — which is also why replacing
+    it broke nothing and proved nothing.
+
+    This builds the shape the upstream integration actually creates: one config entry
+    holding TWO devices, the robot `(roborock, duid)` and its dock `(roborock,
+    duid_dock)`, confirmed against `roborock/coordinator.py::dock_device_info` at
+    2026.10.1.
+
+    ABLATION: point the lookup at the robot's own identifier instead of the suffixed
+    one and this goes red.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
+
+    entry = MockConfigEntry(domain="roborock", entry_id="rd1_entry")
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    robot = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd1_duid")},
+    )
+    dock = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("roborock", "rd1_duid_dock")},
+        model_id="7",
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "roborock", "rd1_uid",
+        suggested_object_id="rd1", device_id=robot.id, config_entry=entry,
+    )
+
+    found = rb_dock.find_dock_device(hass, vac.entity_id)
+    assert found is not None, "the dock device is in the registry and must be found"
+    assert found.id == dock.id
+    assert found.id != robot.id, "the ROBOT is not the dock"
+
+
+def test_rd2_a_second_roborocks_dock_is_never_returned(hass):
+    """[RD-2] ISSUE #69 — the scoping claim, now carried by the identifier alone.
+
+    The old walk scoped the search to the vacuum's own config entries and the docstring
+    credited THAT for keeping a second robot's dock out. It was never the load-bearing
+    part: the duid is the robot's own id, so the suffixed identifier already excludes
+    every other dock. This pins the claim directly rather than trusting the mechanism
+    that used to be given credit for it — and it holds with both robots in the SAME
+    entry, which the old scoping could not have managed.
+
+    ABLATION: drop the duid from the identifier (search for a bare `_dock`) and this
+    goes red.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
+
+    entry = MockConfigEntry(domain="roborock", entry_id="rd2_entry")
+    entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    mine = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd2_mine")},
+    )
+    my_dock = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd2_mine_dock")},
+    )
+    theirs_dock = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd2_theirs_dock")},
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "roborock", "rd2_uid",
+        suggested_object_id="rd2", device_id=mine.id, config_entry=entry,
+    )
+
+    found = rb_dock.find_dock_device(hass, vac.entity_id)
+    assert found is not None and found.id == my_dock.id
+    assert found.id != theirs_dock.id, "the other robot's dock must never be returned"
+
+
+def test_rd3_a_vacuum_with_no_dock_device_resolves_to_none(hass):
+    """[RD-3] The no-dock answer must come from the registry, not from an exception.
+
+    `dock_profile` reads `None` as "no dock device" and settles on the catalog default.
+    A lookup that raised would be caught nowhere — `find_dock_device` has no try/except
+    — so the dockless case has to be a clean miss.
+
+    ABLATION: make the lookup return the robot when no dock exists and this goes red.
+    """
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.roborock import dock as rb_dock
+
+    entry = MockConfigEntry(domain="roborock", entry_id="rd3_entry")
+    entry.add_to_hass(hass)
+    robot = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={("roborock", "rd3_duid")},
+    )
+    vac = er.async_get(hass).async_get_or_create(
+        "vacuum", "roborock", "rd3_uid",
+        suggested_object_id="rd3", device_id=robot.id, config_entry=entry,
+    )
+
+    assert rb_dock.find_dock_device(hass, vac.entity_id) is None

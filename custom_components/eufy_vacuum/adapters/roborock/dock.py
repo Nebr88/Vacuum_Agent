@@ -64,9 +64,24 @@ def find_dock_device(hass: HomeAssistant, vacuum_entity_id: str) -> Any | None:
     """Return the dock device entry that belongs to this vacuum, or None.
 
     Matched by IDENTIFIER (``{duid}_dock``) rather than by name or model, because the
-    name is user-renameable and the model is a free-text string. Scoped to the config
-    entries the vacuum's own device belongs to, so a second Roborock on the account
-    cannot contribute its dock.
+    name is user-renameable and the model is a free-text string. The duid is the
+    robot's own id, so the identifier ALREADY scopes the answer to this vacuum — a
+    second Roborock on the account has a different duid and therefore a different dock
+    identifier, and cannot be returned here.
+
+    ISSUE #69. This used to walk ``vacuum_device.config_entries`` and scan every device
+    in each entry for a matching identifier. That read is deprecated from HA 2026.8 and
+    removed in 2027.10, and the config-entry scoping it bought was redundant: the duid
+    already did that work. The registry indexes devices BY identifier, so the walk is
+    replaced by the lookup it was hand-rolling — no deprecated attribute, no version
+    shim, and an index hit instead of a scan over every device in the entry.
+
+    ``async_get_device``'s signature is unchanged across 2025.6.0, 2026.7.0, 2026.8.0
+    and 2026.10.1 (checked in the wheels), so this needs no compatibility branch. It
+    searches MAIN devices only; the upstream dock is registered with ``DeviceInfo``,
+    not ``ChildDeviceInfo`` (``roborock/coordinator.py::dock_device_info``, read at
+    2026.10.1), so it is reachable here. A future upstream move of the dock to a child
+    device would need ``async_get_child_device_by_identifier`` instead.
     """
     ent_reg = er.async_get(hass)
     entry = ent_reg.async_get(vacuum_entity_id)
@@ -86,13 +101,10 @@ def find_dock_device(hass: HomeAssistant, vacuum_entity_id: str) -> Any | None:
     if not duids:
         return None
 
-    wanted = {f"{duid}{DOCK_IDENTIFIER_SUFFIX}" for duid in duids}
-    for config_entry_id in vacuum_device.config_entries:
-        for device in dr.async_entries_for_config_entry(dev_reg, config_entry_id):
-            for domain, ident in device.identifiers:
-                if domain == ROBOROCK_DOMAIN and ident in wanted:
-                    return device
-    return None
+    wanted = {
+        (ROBOROCK_DOMAIN, f"{duid}{DOCK_IDENTIFIER_SUFFIX}") for duid in duids
+    }
+    return dev_reg.async_get_device(identifiers=wanted)
 
 
 def dock_type_value(device: Any | None) -> int | None:

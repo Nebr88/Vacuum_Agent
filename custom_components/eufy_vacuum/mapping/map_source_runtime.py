@@ -28,6 +28,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
+from ..entity_helpers import device_config_entry_ids
 from .map_source import (
     _as_int,
     _clamp01,
@@ -932,8 +933,15 @@ def dreame_coordinator(
     """Resolve the base ``dreame_vacuum`` coordinator (exposes ``.device``) or None.
 
     Route 1: find the physical device behind the vacuum, then the dreame config entry
-    among ``device.config_entries`` (``hass.data[domain][entry_id]``, falling back to the
-    entry's ``runtime_data``). Registry-only + a dict lookup — loop-safe, never raises.
+    among the ids ``device_config_entry_ids`` reports (``hass.data[domain][entry_id]``,
+    falling back to the entry's ``runtime_data``). Registry-only + a dict lookup —
+    loop-safe, never raises.
+
+    ISSUE #69. That used to read ``device.config_entries`` directly, which HA deprecated
+    in 2026.8 and removes in 2027.10. Unlike the Roborock dock lookup, this genuinely
+    needs the QUESTION and not an identifier — it wants whichever entry of ``domain``
+    owns the device — so it goes through the helper, which prefers the 2026.8+ attribute
+    and falls back for the cores below our 2025.6.0 floor that have no such attribute.
     """
     try:
         bucket = hass.data.get(domain)
@@ -945,7 +953,7 @@ def dreame_coordinator(
         if ent is not None and ent.device_id:
             device = dr.async_get(hass).async_get(ent.device_id)
             if device is not None:
-                for eid in device.config_entries:
+                for eid in device_config_entry_ids(device):
                     ce = hass.config_entries.async_get_entry(eid)
                     if ce is not None and ce.domain == domain:
                         coord = bucket.get(eid)

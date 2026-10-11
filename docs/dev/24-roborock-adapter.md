@@ -43,9 +43,18 @@ registered as a Eufy.
 
 ## 3. The dock is resolved live, and three cheaper probes were measured wrong
 
-`adapters/roborock/dock.py::dock_profile` reads the **second** device in the Roborock config entry —
-the dock — takes its `model_id` integer, and runs it through python-roborock's own capability
-table. This is the strongest work in the package, and its value is mostly in what it refuses.
+`adapters/roborock/dock.py::dock_profile` reads the **second** device the Roborock integration
+creates — the dock — takes its `model_id` integer, and runs it through python-roborock's own
+capability table. This is the strongest work in the package, and its value is mostly in what it
+refuses.
+
+`find_dock_device` reaches that device by **identifier**, `(roborock, {duid}_dock)`, through one
+`dev_reg.async_get_device` call. Until ISSUE #69 it walked `vacuum_device.config_entries` and
+scanned every device in each entry looking for the same identifier. Two things were wrong with
+that: the read is deprecated from HA 2026.8 and removed in 2027.10, and the config-entry scoping
+it bought was never load-bearing — the duid is the robot's own id, so the suffixed identifier
+already excludes every other robot's dock. `[RD-2]` now pins that claim directly, with both
+robots in the **same** entry, which the old scoping could not have distinguished.
 
 Three cheaper probes were each tried against real hardware and each measured wrong:
 

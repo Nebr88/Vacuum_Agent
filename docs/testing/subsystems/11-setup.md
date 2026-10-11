@@ -2,7 +2,7 @@
 
 The setup subsystem owns the integration lifecycle around a config entry: the
 guided setup workflow + progress, start-protection state, map deletion, and the
-room-drift detector (new/removed segments since last check). Covered by **146 tests across 9 files**.
+room-drift detector (new/removed segments since last check). Covered by **164 tests across 9 files**.
 
 Source: `custom_components/eufy_vacuum/setup/` (+ `__init__.py` entry wiring)
 Architecture reference: [31 — The Setup Layer](../../dev/31-setup-layer.md)
@@ -13,10 +13,10 @@ Architecture reference: [31 — The Setup Layer](../../dev/31-setup-layer.md)
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `drift.py` | 316 | 84% | `test_setup_drift.py`, `test_setup_drift_deep.py` | integration | clean |
-| `workflow.py` | 67 | 91% | `test_setup_workflow.py`, `test_setup_workflow_deep.py` | integration | **bare x1** |
+| `drift.py` | 347 | 85% | `test_setup_drift.py`, `test_setup_drift_deep.py` | integration | clean |
+| `workflow.py` | 75 | 92% | `test_setup_workflow.py`, `test_setup_workflow_deep.py` | integration | **bare x1** |
 | `status.py` | 82 | 96% | `test_setup_status.py` | integration | clean |
-| `delete.py` | 59 | 95% | `test_setup_delete.py` | integration | clean |
+| `delete.py` | 59 | 96% | `test_setup_delete.py` | integration | clean |
 | `protection.py` | 37 | 96% | `test_setup_protection.py` (unit) | unit | clean |
 | `__init__.py` | 0 | 100% | `test_init_setup.py`, `test_manager_setup.py` | integration | **bare x4** |
 
