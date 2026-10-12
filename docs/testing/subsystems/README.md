@@ -8,7 +8,7 @@ mapping) then peripheral subsystems and the HA-facing layers.
 
 | # | Subsystem | Map | Cov |
 |---|-----------|-----|----:|
-| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 92% |
+| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 93% |
 | 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 92% |
 | 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 95% |
 | 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 91% |

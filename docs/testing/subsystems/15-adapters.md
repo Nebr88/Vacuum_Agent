@@ -564,7 +564,7 @@ filter weakened to a type check would report it as a clean order continuously.
 | `eufy/maintenance_components.py` | 1 | 100% | `test_maintenance_config.py` | adapter | clean |
 | `eufy/eufy_upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/upkeep_guides_i18n/*.py` (17 languages) | 19 | 100% | `test_upkeep_guides_i18n.py` | adapter |
-| `roborock/adapter.py` | 88 | 98% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/adapter.py` | 89 | 98% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/model_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/vocabulary.py` | 19 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/entities.py` | 27 | 100% | `roborock/test_adapter.py` | adapter | - |

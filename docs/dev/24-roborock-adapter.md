@@ -90,6 +90,44 @@ first time a model shipped with a different station.
 
 ---
 
+### 3b. The #67 narrowing, and the rung that reopened it
+
+An uncatalogued model takes `DEFAULT_PROFILE`'s optimistic `mop_settable: True`. That
+optimism is justified in the catalogue — a wrong guess costs a rejected call that is caught
+and logged — but it does **not** hold for the safest-water pre-call, which aborts dispatch
+on a *missing target* by design (issue #51). On a mopless uncatalogued model every clean
+died, including the plainest all-vacuum batch. ISSUE #67.
+
+The narrowing asks `resolve_with_reason`, and the four answers do not divide two ways:
+
+| reason | mop control? | why |
+|---|---|---|
+| `resolved` | **yes** | a state exists; the profile decides, unchanged |
+| `registered_no_state` | **yes** | boot window on a device that may really mop — narrowing here is the one branch that can wet-mop a dry room |
+| `disabled` | **no** | can never receive `select_option`; unlike the boot window it does not resolve by waiting |
+| `absent` | **no** | the integration never created it |
+
+**The first cut got `disabled` wrong and #67 was reported again.** It ORed the state machine
+with a bare `EntityRegistry.async_get`, which answers for a disabled entry too — so a
+disabled mop select read as a live control, the guess survived, and every clean still
+aborted with the identical error, because the dispatcher's check is a *state* check and a
+disabled entity fails that too. The reporter's workaround was to add their model to this
+catalogue, which bypasses the narrowing entirely (`profile is DEFAULT_PROFILE` goes False)
+and is why it worked.
+
+`resolve_with_reason` had drawn that four-way for months (`core/capabilities.py`,
+live:ENT-2). The correction is simply to ask it instead of re-deriving a boolean — the
+shorter copy of a predicate is the bug. `[MS-8]` pins `disabled`, `[MS-9]` pins that the
+boot window is untouched.
+
+**And the rule stops at `mop_settable`.** `has_mop` asks whether the hardware HAS a mop,
+where a water-box sensor someone switched off is still evidence that it does; `mop_settable`
+asks whether we can SEND a command, where disabled is a definite no. `[MS-10]` pins the
+difference. Collapsing them is the conflation this catalogue exists to prevent: the S6 has a
+mop and cannot be told to use it.
+
+---
+
 ## 3a. The dock controls are switches, and that is why they were unreachable
 
 The dock is resolved live (§3). Driving it was a separate problem, and the answer had been

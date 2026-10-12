@@ -118,7 +118,7 @@ unconditionally.
 |---------------|------:|----:|------------|-------|-------|
 | `manager.py` | 2331 | 93% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit | **bare x10** |
 | `error_tracker.py` | 455 | 92% | `test_core_error_tracker.py` | integration | **bare x1** |
-| `capabilities.py` | 349 | 87% | `test_core_capabilities.py` | integration | clean |
+| `capabilities.py` | 349 | 88% | `test_core_capabilities.py` | integration | clean |
 | `charging.py` | 42 | 100% | `test_charging.py` (unit) | unit | clean |
 | `run_state.py` | 15 | 100% | `test_core_run_state.py` (unit) | unit | clean |
 | `water_amendment.py` | 127 | 92% | `test_core_water_amendment.py` | integration | clean |

@@ -1363,3 +1363,126 @@ def test_dd4_a_dock_newer_than_the_library_keeps_its_code(monkeypatch, hass):
     assert dd["dock_type"] == 99
     assert dd["dock_type_name"] is None
     assert dd["reason"] == "dock_type_newer_than_library"
+
+
+# ---------------------------------------------------------------------------
+# [MS-8..10] ISSUE #67 REOPENED — a DISABLED select is not a control
+# ---------------------------------------------------------------------------
+
+def _q5_water_precall_armed(hass, monkeypatch, make_select=None):
+    """Register an uncatalogued mopless Q5 and report whether water pre-call is armed.
+
+    The arming is the observable that matters: `mixed_mode_water_policy: "safest"` is the
+    entry that ABORTS dispatch on a missing target, so "armed with no reachable target"
+    is exactly the state in which every clean fails.
+    """
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
+
+    monkeypatch.setattr(
+        rb, "_device_for_vacuum",
+        lambda h, v: type("D", (), {"model": "roborock.vacuum.a34",
+                                    "manufacturer": "Roborock", "id": "d1"})(),
+    )
+    monkeypatch.setattr(rb, "dock_profile", lambda h, v: None)
+    clear_registry()
+    entry = MockConfigEntry(domain="roborock", entry_id="ms8")
+    entry.add_to_hass(hass)
+    if make_select is not None:
+        make_select(er.async_get(hass), entry)
+    hass.states.async_set(_Q5, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _Q5)
+    cfg = get_adapter_config(_Q5) or {}
+    pre = (cfg.get("dispatch") or {}).get("global_pre_calls") or []
+    return cfg, any(p.get("field") == "water_level" for p in pre)
+
+
+_Q5 = "vacuum.roborock_q5"
+
+
+def test_ms8_a_disabled_mop_select_is_not_a_mop_control(hass, monkeypatch):
+    """[MS-8] ISSUE #67, second report: the a34 that 2.2.5 did not fix.
+
+    The first cut of the #67 narrowing ORed the state machine with a bare registry hit,
+    and `EntityRegistry.async_get` answers for a DISABLED entry too. So a disabled mop
+    select read as a live control, the optimistic guess survived, and the safest-water
+    pre-call still aborted every clean with the identical error — the dispatcher's check
+    is a STATE check, which a disabled entity also fails.
+
+    A disabled entity can never receive `select_option`. Unlike the boot window it does
+    not resolve by waiting, so it belongs with ABSENT, which is what
+    `resolve_with_reason` has said all along.
+
+    ABLATION: go back to `hass.states.get(...) is not None or registry.async_get(...)
+    is not None` and this goes red.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    def _disabled(registry, entry):
+        registry.async_get_or_create(
+            "select", "roborock", "q5_water_box_mode",
+            suggested_object_id="roborock_q5_mop_intensity", config_entry=entry,
+            disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+        )
+
+    cfg, armed = _q5_water_precall_armed(hass, monkeypatch, _disabled)
+
+    assert armed is False, (
+        "the water pre-call was armed against a DISABLED select — it can never receive "
+        "the call, so every clean aborts on a missing target, which is #67 verbatim"
+    )
+    assert cfg["capabilities"]["supports_water_control"] is False
+
+
+def test_ms9_a_registered_but_stateless_select_still_keeps_the_guess(hass, monkeypatch):
+    """[MS-9] The boot window is UNCHANGED, and that is the safety property.
+
+    Registered, ENABLED, no state yet is a real mop device mid-startup. Narrowing there
+    is the one branch that could wet-mop a dry room, so the guess must survive and #51
+    must still abort. This is the test that stops [MS-8]'s fix from being widened into
+    "stateless means mopless".
+
+    ABLATION: treat REGISTERED_NO_STATE as absent and this goes red.
+    """
+    def _enabled(registry, entry):
+        registry.async_get_or_create(
+            "select", "roborock", "q5_water_box_mode",
+            suggested_object_id="roborock_q5_mop_intensity", config_entry=entry,
+        )
+
+    _cfg, armed = _q5_water_precall_armed(hass, monkeypatch, _enabled)
+
+    assert armed is True, (
+        "a registered, enabled, stateless select is a boot window on a device that may "
+        "really mop — keeping the guess is what makes the #51 abort still fire"
+    )
+
+
+def test_ms10_a_disabled_water_box_still_counts_as_HAVING_a_mop(hass, monkeypatch):
+    """[MS-10] The disabled rule must NOT carry over to `has_mop`.
+
+    `mop_settable` asks *can we send a command* — a disabled entity is a definite no.
+    `has_mop` asks *does this hardware have a mop* — a water-box sensor the integration
+    created and someone then switched off is still evidence that it does. Collapsing the
+    two is the exact confusion the catalogue exists to prevent (the S6 HAS a mop and
+    cannot be told to use it).
+
+    ABLATION: reuse the mop_settable predicate for `_any_mop_signal` and this goes red.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    def _disabled_water_box(registry, entry):
+        registry.async_get_or_create(
+            "binary_sensor", "roborock", "q5_water_box",
+            suggested_object_id="roborock_q5_water_box_attached", config_entry=entry,
+            disabled_by=er.RegistryEntryDisabler.USER,
+        )
+
+    cfg, armed = _q5_water_precall_armed(hass, monkeypatch, _disabled_water_box)
+
+    assert armed is False, "no mop CONTROL exists, so the pre-call stays off"
+    assert cfg["capabilities"]["supports_mop_features"] is True, (
+        "a disabled water-box sensor is still evidence the hardware has a mop; "
+        "reporting no mop here would be the same conflation #67 came from"
+    )

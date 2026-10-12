@@ -113,7 +113,12 @@ def register_roborock_adapter_for_vacuum(
     registry) OR-ed with live entity presence, so the registered config reflects
     this specific installation's actual HA surface.
     """
-    from ...core.capabilities import detect_capabilities
+    from ...core.capabilities import (
+        REASON_ABSENT as _REASON_ABSENT,
+        REASON_DISABLED as _REASON_DISABLED,
+        detect_capabilities,
+        resolve_with_reason as _resolve_with_reason,
+    )
 
     vid = vacuum_entity_id
 
@@ -156,10 +161,21 @@ def register_roborock_adapter_for_vacuum(
     #   in NEITHER               -> the integration never created it, so there is no mop
     #                               control and nothing to make safe. The pre-call could
     #                               then only ever abort.
+    #   DISABLED                 -> registered and switched off. ISSUE #67 REOPENED: the
+    #                               first cut of this guard ORed the state machine with a
+    #                               bare registry hit, and `async_get` answers for a
+    #                               disabled entry too — so a disabled mop select read as
+    #                               a live control, the guess survived, and every clean
+    #                               still aborted. A disabled entity can NEVER receive
+    #                               `select_option`, so unlike the boot window it does not
+    #                               resolve by waiting. It belongs with ABSENT.
+    #
+    # `resolve_with_reason` is where that four-way already lives (core/capabilities.py,
+    # live:ENT-2) and it predates this guard by months. Asking it rather than re-deriving
+    # a boolean is the whole correction: the shorter copy of a predicate is the bug.
     _mop_intensity_id = build_entity_id(vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT)
-    _mop_control_exists = hass.states.get(_mop_intensity_id) is not None or (
-        er.async_get(hass).async_get(_mop_intensity_id) is not None
-    )
+    _, _mop_reason = _resolve_with_reason(hass, [_mop_intensity_id])
+    _mop_control_exists = _mop_reason not in (_REASON_ABSENT, _REASON_DISABLED)
     mop_settable = bool(profile.get("mop_settable", False))
     if mop_settable and profile is DEFAULT_PROFILE and not _mop_control_exists:
         _LOGGER.debug(
@@ -187,9 +203,16 @@ def register_roborock_adapter_for_vacuum(
     #
     # Same discipline as above: narrows the GUESS only, never a catalogued entry, and
     # only ever True -> False.
+    # AND THE DISABLED RULE DOES NOT CARRY OVER HERE, deliberately. `mop_settable` asks
+    # "can we SEND a command", where a disabled entity is a definite no. `has_mop` asks
+    # "does this hardware HAVE a mop", and a water-box sensor the integration created and
+    # the user then switched off is still evidence that it does. Same reason the two must
+    # stay distinct at all: presence and control are different questions, and the answer
+    # to one is not the answer to the other.
     _water_box_id = build_entity_id(vid, SUFFIX_WATER_BOX, DOMAIN_BINARY_SENSOR)
-    _any_mop_signal = _mop_control_exists or (
-        hass.states.get(_water_box_id) is not None
+    _any_mop_signal = (
+        _mop_reason != _REASON_ABSENT
+        or hass.states.get(_water_box_id) is not None
         or er.async_get(hass).async_get(_water_box_id) is not None
     )
     has_mop = bool(profile.get("has_mop", False))
