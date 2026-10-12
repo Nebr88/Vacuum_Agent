@@ -120,6 +120,42 @@ live:ENT-2). The correction is simply to ask it instead of re-deriving a boolean
 shorter copy of a predicate is the bug. `[MS-8]` pins `disabled`, `[MS-9]` pins that the
 boot window is untouched.
 
+### The select is not a device claim — and that is why there are two signals
+
+Measured in python-roborock 7.12.3. `get_water_modes()` opens with
+`supported_modes = [WaterModes.OFF]` and unconditionally extends it, so it can never
+return an empty list. HA creates the select on `if api.status.water_mode_options else
+None`. **Therefore every V1 Roborock gets `select.<obj>_mop_intensity`, mop or no mop** —
+its existence is a library default, not something the device said.
+
+Two sibling functions in that same file *do* guard on `features.is_support_water_mode`
+and return `[]` / `None`; `get_water_modes` is the copy missing it. (Upstream is
+`python-roborock/python-roborock`, not core — worth a PR, but not ours to depend on.)
+
+So keying the narrowing on the select alone had a second failure mode beyond the
+disabled one: it degrades to a **no-op** as installs upgrade, because the control is then
+present on every V1 device and the guess always survives. #67 would return silently.
+
+The signal that *is* a device claim is `device_features.is_support_water_mode`, true only
+when the device reports `MOP_ELECTRONIC_MODULE` / `MOP_SHAKE_MODULE` / `MOP_SPIN_MODULE`
+in `get_init_status`. We read it off the entity surface, because upstream gates the
+water-box binary sensors on exactly that flag
+(`support_fn=lambda api: api.device_features.is_support_water_mode`). **The sensor's
+presence IS the flag.**
+
+Both must hold for the optimistic guess to survive:
+
+> a mop module is claimed **and** a control exists that could receive the call.
+
+Either missing and the safest-water pre-call could only ever abort. `[MS-11]` is the case
+a current library produces on a mopless Q5 — select present, water box absent — which the
+select-only test could not even express. `[MS-12]` is the no-regression guard.
+
+**Measured, not assumed, that this is a no-op for a real mop device:** a live Roborock
+carries `binary_sensor.<obj>_water_box_attached` (reading `unavailable`) alongside
+`select.<obj>_mop_intensity`. Two existing tests had fixtures that registered only the
+select — a shape no mop device produces — and the swap is what exposed them.
+
 **And the rule stops at `mop_settable`.** `has_mop` asks whether the hardware HAS a mop,
 where a water-box sensor someone switched off is still evidence that it does; `mop_settable`
 asks whether we can SEND a command, where disabled is a definite no. `[MS-10]` pins the

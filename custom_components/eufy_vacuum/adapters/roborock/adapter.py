@@ -173,11 +173,45 @@ def register_roborock_adapter_for_vacuum(
     # `resolve_with_reason` is where that four-way already lives (core/capabilities.py,
     # live:ENT-2) and it predates this guard by months. Asking it rather than re-deriving
     # a boolean is the whole correction: the shorter copy of a predicate is the bug.
+    # AND THE SELECT'S PRESENCE IS NOT A DEVICE CLAIM — measured in python-roborock
+    # 7.12.3, which is why this asks TWO questions and not one.
+    #
+    # `get_water_modes()` (roborock/data/v1/v1_clean_modes.py) opens with
+    # `supported_modes = [WaterModes.OFF]` and unconditionally extends it, so it can
+    # never return an empty list. HA creates the select on
+    # `if api.status.water_mode_options else None` — therefore EVERY V1 Roborock gets
+    # `select.<obj>_mop_intensity`, mop or no mop. Its existence is a library default.
+    # Two sibling functions in that same file DO guard on
+    # `features.is_support_water_mode` and return []/None; `get_water_modes` is the
+    # copy that is missing it. (Worth an upstream PR, but not ours to depend on.)
+    #
+    # So "the select exists" cannot answer "can this be told to mop", and keying the
+    # narrowing on it alone degrades to a no-op as installs upgrade: the control would
+    # then be present on every V1 device and the guess would always survive.
+    #
+    # THE SIGNAL THAT IS A DEVICE CLAIM is `device_features.is_support_water_mode`,
+    # true only when the device reports MOP_ELECTRONIC_MODULE / MOP_SHAKE_MODULE /
+    # MOP_SPIN_MODULE in `get_init_status`. We read it the way this adapter reads
+    # everything — off the HA entity surface — because upstream gates the water-box
+    # binary sensors on exactly that flag (`support_fn=lambda api:
+    # api.device_features.is_support_water_mode`). The sensor's presence IS the flag.
+    #
+    # BOTH must hold for the guess to survive:
+    #   a mop module is claimed  AND  a control exists that could receive the call.
+    # Either one missing means the safest-water pre-call could only ever abort.
+    _water_box_id = build_entity_id(vid, SUFFIX_WATER_BOX, DOMAIN_BINARY_SENSOR)
+    _, _wb_reason = _resolve_with_reason(hass, [_water_box_id])
+    # Registered-or-stated, DISABLED included: a water-box sensor someone switched off
+    # is still proof the integration created it, which is still proof of the flag. This
+    # asks about HARDWARE, not reachability, so the disabled rule below does not apply.
+    _mop_module_claimed = _wb_reason != _REASON_ABSENT
+
     _mop_intensity_id = build_entity_id(vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT)
     _, _mop_reason = _resolve_with_reason(hass, [_mop_intensity_id])
-    _mop_control_exists = _mop_reason not in (_REASON_ABSENT, _REASON_DISABLED)
+    _mop_control_reachable = _mop_reason not in (_REASON_ABSENT, _REASON_DISABLED)
+    _mop_is_commandable = _mop_module_claimed and _mop_control_reachable
     mop_settable = bool(profile.get("mop_settable", False))
-    if mop_settable and profile is DEFAULT_PROFILE and not _mop_control_exists:
+    if mop_settable and profile is DEFAULT_PROFILE and not _mop_is_commandable:
         _LOGGER.debug(
             "roborock %s: uncatalogued model with no %s in the state machine or the "
             "entity registry — treating it as mopless (issue #67) rather than letting "
@@ -209,12 +243,11 @@ def register_roborock_adapter_for_vacuum(
     # the user then switched off is still evidence that it does. Same reason the two must
     # stay distinct at all: presence and control are different questions, and the answer
     # to one is not the answer to the other.
-    _water_box_id = build_entity_id(vid, SUFFIX_WATER_BOX, DOMAIN_BINARY_SENSOR)
-    _any_mop_signal = (
-        _mop_reason != _REASON_ABSENT
-        or hass.states.get(_water_box_id) is not None
-        or er.async_get(hass).async_get(_water_box_id) is not None
-    )
+    # Keyed on the water box ALONE, now that the select is known to carry no
+    # information. It used to be OR-ed with the mop select, which on a current library
+    # makes every V1 Roborock report a mop — the same false confidence in the vacuum
+    # list and diagnostics that this narrowing exists to remove.
+    _any_mop_signal = _mop_module_claimed
     has_mop = bool(profile.get("has_mop", False))
     if has_mop and profile is DEFAULT_PROFILE and not _any_mop_signal:
         _LOGGER.debug(

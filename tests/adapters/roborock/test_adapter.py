@@ -1025,6 +1025,15 @@ def test_ms2_boot_window_keeps_the_guess_so_51_still_aborts(monkeypatch, hass):
     clear_registry()
     _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.zz98")
     reg = er.async_get(hass)
+    # THE WATER BOX WAS MISSING FROM THIS FIXTURE and the signal swap exposed it. A real
+    # mop device publishes `binary_sensor.<obj>_water_box_attached` — upstream gates it
+    # on `device_features.is_support_water_mode`. MEASURED on a live Roborock: it is
+    # there (reading `unavailable`) alongside `select.ivy_mop_intensity`. So this fixture
+    # was describing a shape no mop device produces, not a boot window.
+    reg.async_get_or_create(
+        "binary_sensor", "roborock", "zz98_water_box",
+        suggested_object_id="ivy_water_box_attached",
+    )
     entry = reg.async_get_or_create(
         "select", "roborock", "zz98_mop_intensity", suggested_object_id="ivy_mop_intensity"
     )
@@ -1047,6 +1056,11 @@ def test_ms3_uncatalogued_with_a_live_select_is_unchanged(monkeypatch, hass):
     today is byte-identical."""
     clear_registry()
     _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.zz97")
+    # The water box is what makes this an uncatalogued MOP model rather than an
+    # uncatalogued mopless one — see [MS-11]. Measured on a live Roborock, which carries
+    # it reading `unavailable`; the state value is irrelevant here, its existence is the
+    # `is_support_water_mode` claim.
+    hass.states.async_set("binary_sensor.ivy_water_box_attached", "unavailable")
     hass.states.async_set(
         "select.ivy_mop_intensity", "off", {"options": ["off", "low", "medium", "high"]}
     )
@@ -1420,6 +1434,15 @@ def test_ms8_a_disabled_mop_select_is_not_a_mop_control(hass, monkeypatch):
     from homeassistant.helpers import entity_registry as er
 
     def _disabled(registry, entry):
+        # The water box is REQUIRED here, and that is the point of its presence: it
+        # makes `_mop_module_claimed` true, so the ONLY thing that can narrow this
+        # device is the disabled rule. Without it the signal swap ([MS-11]) narrows on
+        # the missing mop module and this test passes without exercising its own claim
+        # — which is exactly what it did for one run after the swap landed.
+        registry.async_get_or_create(
+            "binary_sensor", "roborock", "q5_water_box_status",
+            suggested_object_id="roborock_q5_water_box_attached", config_entry=entry,
+        )
         registry.async_get_or_create(
             "select", "roborock", "q5_water_box_mode",
             suggested_object_id="roborock_q5_mop_intensity", config_entry=entry,
@@ -1435,27 +1458,56 @@ def test_ms8_a_disabled_mop_select_is_not_a_mop_control(hass, monkeypatch):
     assert cfg["capabilities"]["supports_water_control"] is False
 
 
-def test_ms9_a_registered_but_stateless_select_still_keeps_the_guess(hass, monkeypatch):
-    """[MS-9] The boot window is UNCHANGED, and that is the safety property.
+def test_ms9_the_boot_window_still_keeps_the_guess(hass, monkeypatch):
+    """[MS-9] A real mop device mid-startup must NOT be narrowed.
 
-    Registered, ENABLED, no state yet is a real mop device mid-startup. Narrowing there
-    is the one branch that could wet-mop a dry room, so the guess must survive and #51
-    must still abort. This is the test that stops [MS-8]'s fix from being widened into
-    "stateless means mopless".
+    Narrowing a device that really mops is the one branch that can wet-mop a dry room:
+    `mop_settable` False means no safest-water pre-call, so a mixed batch never lowers
+    the water. The boot window therefore has to survive, and #51 has to keep aborting.
 
-    ABLATION: treat REGISTERED_NO_STATE as absent and this goes red.
+    THE PREMISE OF THIS TEST CHANGED when the signal was swapped, and it is worth
+    saying why rather than quietly editing it. It used to register the mop SELECT alone,
+    stateless, and assert the guess survived — correct while the select was the only
+    signal. It is not correct now: the select exists on every V1 Roborock, so "select
+    registered, no water box" is not an unknown, it is positive evidence of a device
+    with no mop module ([MS-11]). The boot window is the case where BOTH signals are
+    registered and NEITHER has a state yet — the integration has created its entities
+    and they have not materialised. That is what this asserts.
+
+    ABLATION: require a STATE (rather than registered-or-stated) on either signal and
+    this goes red.
     """
-    def _enabled(registry, entry):
-        registry.async_get_or_create(
-            "select", "roborock", "q5_water_box_mode",
-            suggested_object_id="roborock_q5_mop_intensity", config_entry=entry,
-        )
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
 
-    _cfg, armed = _q5_water_precall_armed(hass, monkeypatch, _enabled)
+    monkeypatch.setattr(
+        rb, "_device_for_vacuum",
+        lambda h, v: type("D", (), {"model": "roborock.vacuum.a34",
+                                    "manufacturer": "Roborock", "id": "d1"})(),
+    )
+    monkeypatch.setattr(rb, "dock_profile", lambda h, v: None)
+    clear_registry()
+    entry = MockConfigEntry(domain="roborock", entry_id="ms9")
+    entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    reg.async_get_or_create("binary_sensor", "roborock", "q5_water_box_status",
+                            suggested_object_id="roborock_q5_water_box_attached",
+                            config_entry=entry)
+    reg.async_get_or_create("select", "roborock", "q5_water_box_mode",
+                            suggested_object_id="roborock_q5_mop_intensity",
+                            config_entry=entry)
+    assert hass.states.get("select.roborock_q5_mop_intensity") is None, "stateless"
+    assert hass.states.get("binary_sensor.roborock_q5_water_box_attached") is None
 
-    assert armed is True, (
-        "a registered, enabled, stateless select is a boot window on a device that may "
-        "really mop — keeping the guess is what makes the #51 abort still fire"
+    hass.states.async_set(_Q5, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _Q5)
+    cfg = get_adapter_config(_Q5) or {}
+    pre = (cfg.get("dispatch") or {}).get("global_pre_calls") or []
+
+    assert any(p.get("field") == "water_level" for p in pre), (
+        "both signals registered and neither materialised is a boot window on a device "
+        "that may really mop — the guess must survive so #51 still aborts"
     )
 
 
@@ -1485,4 +1537,96 @@ def test_ms10_a_disabled_water_box_still_counts_as_HAVING_a_mop(hass, monkeypatc
     assert cfg["capabilities"]["supports_mop_features"] is True, (
         "a disabled water-box sensor is still evidence the hardware has a mop; "
         "reporting no mop here would be the same conflation #67 came from"
+    )
+
+
+# ---------------------------------------------------------------------------
+# [MS-11..13] The signal swap — the mop SELECT is a library default
+# ---------------------------------------------------------------------------
+#
+# Measured in python-roborock 7.12.3: `get_water_modes()` can never return an empty
+# list, and HA creates `select.<obj>_mop_intensity` on `if water_mode_options`. So the
+# select is present on EVERY V1 Roborock. The water-box binary sensors are gated on
+# `device_features.is_support_water_mode` instead — a real hardware claim — so their
+# presence is the signal that actually answers "can this be told to mop".
+
+def _q5_flags(hass, monkeypatch, *, water_box=None, mop_select=None):
+    """Register an uncatalogued model with the two signals set independently."""
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
+
+    monkeypatch.setattr(
+        rb, "_device_for_vacuum",
+        lambda h, v: type("D", (), {"model": "roborock.vacuum.a34",
+                                    "manufacturer": "Roborock", "id": "d1"})(),
+    )
+    monkeypatch.setattr(rb, "dock_profile", lambda h, v: None)
+    clear_registry()
+    entry = MockConfigEntry(domain="roborock", entry_id="ms11")
+    entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    if water_box:
+        reg.async_get_or_create("binary_sensor", "roborock", "q5_water_box_status",
+                                suggested_object_id="roborock_q5_water_box_attached",
+                                config_entry=entry)
+    if mop_select:
+        reg.async_get_or_create("select", "roborock", "q5_water_box_mode",
+                                suggested_object_id="roborock_q5_mop_intensity",
+                                config_entry=entry)
+    hass.states.async_set(_Q5, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _Q5)
+    cfg = get_adapter_config(_Q5) or {}
+    pre = (cfg.get("dispatch") or {}).get("global_pre_calls") or []
+    return cfg, any(p.get("field") == "water_level" for p in pre)
+
+
+def test_ms11_a_mop_select_without_a_mop_module_is_not_mop_settable(hass, monkeypatch):
+    """[MS-11] The shape a CURRENT python-roborock produces on a mopless Q5.
+
+    The select exists — it exists on every V1 device — and there is no water-box
+    sensor, because `is_support_water_mode` is false. Keying on the select alone says
+    "mop settable", arms the safest-water pre-call and aborts every clean: ISSUE #67
+    returning by a different door as installs upgrade, with the earlier fixes silently
+    degraded to no-ops.
+
+    ABLATION: drop `_mop_module_claimed` from `_mop_control_exists` and this goes red.
+    """
+    cfg, armed = _q5_flags(hass, monkeypatch, water_box=False, mop_select=True)
+
+    assert armed is False, (
+        "a select with no mop module behind it is a library artifact, not a control"
+    )
+    assert cfg["capabilities"]["supports_water_control"] is False
+
+
+def test_ms12_a_real_mop_device_is_untouched(hass, monkeypatch):
+    """[MS-12] The no-regression guard: both signals present -> the guess survives.
+
+    This is what stops [MS-11] from being a blanket "uncatalogued means mopless". A
+    device claiming a mop module AND publishing a reachable control keeps
+    `mop_settable`, so #51 still aborts when its entity goes missing mid-run.
+
+    ABLATION: narrow unconditionally for DEFAULT_PROFILE and this goes red.
+    """
+    cfg, armed = _q5_flags(hass, monkeypatch, water_box=True, mop_select=True)
+
+    assert armed is True
+    assert cfg["capabilities"]["supports_water_control"] is True
+    assert cfg["capabilities"]["supports_mop_features"] is True
+
+
+def test_ms13_has_mop_follows_the_module_not_the_select(hass, monkeypatch):
+    """[MS-13] `has_mop` keys on the water box ALONE.
+
+    It used to be OR-ed with the mop select. On a current library that makes every V1
+    Roborock report a mop it may not have — exactly the confident-and-wrong diagnostics
+    this narrowing was added to stop.
+
+    ABLATION: restore the `or` arm on the select and this goes red.
+    """
+    cfg, _armed = _q5_flags(hass, monkeypatch, water_box=False, mop_select=True)
+
+    assert cfg["capabilities"]["supports_mop_features"] is False, (
+        "a mop-intensity select exists on every V1 Roborock; it is not evidence of a mop"
     )

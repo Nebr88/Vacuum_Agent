@@ -3,8 +3,8 @@
 How the test suite is built, how to run it, and how to add to it without
 rebuilding the scaffolding every time.
 
-The suite currently has **4,156 test functions** across **222 test files**
-(90 unit, 110 integration, 22 adapter) — 4,923 cases after parametrization —
+The suite currently has **4,159 test functions** across **222 test files**
+(90 unit, 110 integration, 22 adapter) — 4,926 cases after parametrization —
 running on Python 3.14 inside a Linux container. The CI behavior gate
 (`pytest tests --no-cov`, which also collects the fourth `tests/replay/`
 directory below — **3,869 cases** total) is all green. Prefer that number and
