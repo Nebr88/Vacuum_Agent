@@ -78,7 +78,9 @@ async def delete_map(
     #
     # Everything below copes with an empty bucket already: protection evaluates to
     # `normal` with no rooms and no learning data, `_deleted_room_ids` is [], and
-    # `remove_map` clears all eight PER_MAP_STORES regardless.
+    # `remove_map` clears every PER_MAP_STORES bucket regardless. (Counting them here
+    # was a hostage to the registry growing — it said "eight" while `payloads` was
+    # being added as the ninth.)
     if bucket is None:
         return _action_result(
             "already_done",

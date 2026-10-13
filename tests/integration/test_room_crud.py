@@ -441,6 +441,41 @@ def test_rc16_the_response_shape_is_the_declared_flag_set(rmm):
     # And the flag names themselves are the ones callers rely on.
     assert declared_flags == {
         "discovery_removed", "history_removed", "rule_status_removed",
-        "run_profiles_removed", "queue_removed", "onboarding_removed",
-        "active_job_cleared",
+        "run_profiles_removed", "queue_removed", "payloads_removed",
+        "onboarding_removed", "active_job_cleared",
     }, sorted(declared_flags)
+
+
+def test_rc17_remove_map_clears_the_payloads_bucket(rmm):
+    """[RC-17] `payloads` was a per-map store this registry went a release without.
+
+    `core/manager.py` writes `queue` and `payloads` on ADJACENT LINES, keyed by the same
+    `str(map_id)`. RP-016 registered the first and missed its twin, so every delete left
+    a payload behind. Found on a live install: one vacuum carried `payloads` for maps 6,
+    7, 11 and 12 while `maps` held only 7, 11 and 12.
+
+    It is the QUIET half of the pair, which is why it survived unnoticed: `queue` has
+    visible consequences, while `payloads` is only read back by an addressed lookup
+    (`get_payload_state`), so a survivor sits inert until a future map reaches the same
+    id. remove_map already spells out why that matters, for `rejected_rooms` — "Eufy
+    only ever rolls map ids FORWARD, so an id is not gone for good" — and that argument
+    was applied to one store and not its neighbour.
+
+    ABLATION: drop the `payloads` row from PER_MAP_STORES and this goes red, while
+    [RC-16]'s contract assertion goes red on the flag — the registry row and the public
+    response are the same change seen twice.
+    """
+    rm, mgr = rmm
+
+    mgr.data.setdefault("payloads", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "payload": {"rooms": []},
+    }
+    mgr.data["payloads"][_VAC]["other_map"] = {"map_id": "other_map"}
+
+    removed = rm.remove_map(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert removed["payloads_removed"] is True
+    assert _MAP not in mgr.data["payloads"][_VAC], "the deleted map's payload survived"
+    assert "other_map" in mgr.data["payloads"][_VAC], (
+        "a sibling map's payload must be untouched — the sweep is per (vacuum, map)"
+    )

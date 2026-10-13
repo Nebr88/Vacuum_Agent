@@ -17,6 +17,18 @@ from ..models.models import RoomConfig
 # however long they existed. Shape is uniform:
 # ``data[key][vacuum_entity_id][str(map_id)]``.
 #
+# AND IT HAPPENED AGAIN, to `payloads`, which this list went a release without.
+# `core/manager.py` writes `queue` and `payloads` on ADJACENT LINES, keyed by the same
+# `str(map_id)` -- RP-016 registered the first and missed its twin. The twin is the
+# quiet half of the pair: `queue` has visible consequences, `payloads` is only read
+# back by an ADDRESSED lookup (`get_payload_state`), so a survivor sits inert until a
+# future map reaches the same id and silently inherits it. remove_map already spells
+# out why that matters, for `rejected_rooms`: "Eufy only ever rolls map ids FORWARD, so
+# an id is not gone for good". The argument was written down and applied to one store.
+#
+# Found on a live install: vacuum.alfred carried `payloads` for maps 6, 7, 11 and 12
+# while `maps` held only 7, 11 and 12.
+#
 # mode="delete" -- the bucket is simply popped; a re-import of the same
 #   map_id starts clean.
 # mode="reset"  -- the bucket must always resolve to a key for any known
@@ -52,6 +64,7 @@ PER_MAP_STORES: tuple[tuple[str, str, str | None], ...] = (
     ("room_rule_status", "delete", "rule_status_removed"),       # rooms/room_crud.py -- rule-evaluation cache
     ("run_profiles",     "delete", "run_profiles_removed"),      # profiles/manager.py -- saved run-profile library
     ("queue",            "delete", "queue_removed"),             # core/manager.py -- built dispatch payload
+    ("payloads",         "delete", "payloads_removed"),          # core/manager.py -- the resolved dispatch payload
     ("onboarding",       "delete", "onboarding_removed"),        # onboarding/manager.py -- per-map setup state
     ("active_jobs",      "reset",  "active_job_cleared"),        # core/manager.py -- reset not deleted
 )

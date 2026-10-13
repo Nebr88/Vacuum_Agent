@@ -2,7 +2,7 @@
 
 The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and the
 **access graph** (which rooms grant cleaning access to which, plus the rule
-engine that gates/modifies rooms at start). Covered by **387 tests across 11 files**.
+engine that gates/modifies rooms at start). Covered by **388 tests across 11 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [17 — A Room's Identity](../../dev/17-room-identity.md), [18 — The Access Graph](../../dev/18-access-graph.md)

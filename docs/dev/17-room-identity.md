@@ -265,7 +265,25 @@ caller nothing remained while an empty bucket was still sitting in `maps`, `run_
 [45 §3](45-the-shared-layer.md)), that made a phantom map easy to create and impossible to remove
 through the only route the UI offers — it took a hand edit of `.storage`. The guard now refuses
 only a genuinely absent bucket; everything downstream already coped with an empty one, since
-protection evaluates to `normal` with no rooms and `remove_map` clears all eight stores regardless.
+protection evaluates to `normal` with no rooms and `remove_map` clears every store in the registry regardless.
+
+**`payloads` was missing from that registry for a release.** `core/manager.py` writes
+`queue` and `payloads` on adjacent lines, keyed by the same `str(map_id)`; RP-016
+registered the first and missed its twin, so every delete left a payload behind. Found on
+a live install carrying `payloads` for maps 6, 7, 11 and 12 while `maps` held only 7, 11
+and 12.
+
+It survived because it is the quiet half of the pair. `queue` has visible consequences;
+`payloads` is only read back by an addressed lookup (`get_payload_state`), so a survivor
+sits inert until a future map reaches the same id — and `remove_map` already spells out
+why that matters, for `rejected_rooms`: *Eufy only ever rolls map ids forward, so an id
+is not gone for good.* The argument was written down and applied to one store.
+
+**The fix is forward-only.** Registering it fixes future deletes; buckets already
+stranded by past deletes stay where they are, because nothing sweeps per-map orphans
+(`VACUUM_KEYED_BUCKETS` sweeps per *vacuum*, which is a different question). A map whose
+`maps` record is gone also cannot be named to `setup_delete_map`, which refuses on
+`bucket is None` — so the residue is currently unreachable through any supported route.
 Pinned by `[SD-11]`, with `[SD-11b]` holding the absent case so success cannot be claimed for
 nothing.
 
