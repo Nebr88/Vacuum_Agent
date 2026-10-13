@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as _er
 from homeassistant.helpers.event import async_track_state_change_event
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
@@ -869,12 +870,39 @@ class DispatchManager:
             # genuine failure gets. Best-effort entries (fan, single-mode water) keep
             # degrading quietly, as before, but say so at WARNING rather than nothing.
             if self._manager.hass.states.get(target_entity) is None:
-                _msg = (
-                    f"{vacuum_entity_id}: global pre-call target {target_entity!r} "
-                    f"does not exist"
-                    + (f" (role {_role!r})" if _role else "")
-                    + " — the device's global setting cannot be applied"
-                )
+                # DISABLED AND ABSENT NEED DIFFERENT ADVICE, and only the user can act
+                # on either. "does not exist" is true of a disabled entity and useless
+                # to the person who disabled it — they are looking for a missing entity
+                # that is right there, switched off, exactly where they left it. #67's
+                # reporter spent an upgrade cycle on the wrong half of this sentence.
+                #
+                # Registry-only, no state machine read: a disabled entity has no state,
+                # which is why we are in this branch at all.
+                _disabled_by = None
+                try:
+                    _entry = _er.async_get(self._manager.hass).async_get(target_entity)
+                    _disabled_by = getattr(_entry, "disabled_by", None) if _entry else None
+                except Exception:  # pragma: no cover - defensive; never mask the abort
+                    _disabled_by = None
+
+                if _disabled_by is not None:
+                    _msg = (
+                        f"{vacuum_entity_id}: global pre-call target {target_entity!r} "
+                        f"is DISABLED"
+                        + (f" (role {_role!r}, disabled by {_disabled_by})" if _role
+                           else f" (disabled by {_disabled_by})")
+                        + " — a disabled entity cannot receive the call, so the "
+                        "device's global setting cannot be applied. Re-enable it in "
+                        "Settings > Devices & Services, or set this on the device's "
+                        "own app and avoid mixing mop and vacuum-only rooms in one run"
+                    )
+                else:
+                    _msg = (
+                        f"{vacuum_entity_id}: global pre-call target {target_entity!r} "
+                        f"does not exist"
+                        + (f" (role {_role!r})" if _role else "")
+                        + " — the device's global setting cannot be applied"
+                    )
                 if _use_safest:
                     raise HomeAssistantError(
                         f"could not apply the safe water setting before a run with "

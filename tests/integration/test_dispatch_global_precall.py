@@ -503,3 +503,46 @@ async def test_missing_target_without_safest_marker_degrades_quietly(hass, manag
 
     assert fan == []
     assert sel == []
+
+
+async def test_gpc6f_a_disabled_target_says_so_instead_of_does_not_exist(hass, manager):
+    """[GPC-6f] "does not exist" is useless to the person who switched it off.
+
+    A disabled entity has no state, so it lands in the same missing-target branch as one
+    that was never created — and the two need different advice. The message the user got
+    on ISSUE #67 said the entity did not exist while it sat in their entity list,
+    disabled, exactly where it had been put. They spent an upgrade cycle on it.
+
+    The refusal itself is unchanged and must stay: a disabled control on a device that
+    can mop still cannot receive the call, so proceeding would wet-mop dry rooms
+    ([MS-8]). Only the sentence changes.
+
+    ABLATION: drop the `disabled_by` lookup and this goes red on the wording while
+    [GPC-6d] stays green — the abort is the same, the explanation is not.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    _register(hass, pre_calls=_SAFEST_WATER)
+    _fan, sel = _capture(hass, targets_exist=False)
+    # Registered and switched off: no state, so the branch above is reached either way.
+    er.async_get(hass).async_get_or_create(
+        "select", "roborock", "uid_mop_intensity",
+        suggested_object_id=_MOP.split(".", 1)[1],
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+    assert hass.states.get(_MOP) is None, "a disabled entity has no state"
+
+    with pytest.raises(HomeAssistantError) as err:
+        await manager._run_global_pre_calls(
+            vacuum_entity_id=_VAC,
+            resolved_rooms=[{"clean_mode": "vacuum", "water_level": "off"}],
+        )
+
+    msg = str(err.value)
+    assert "DISABLED" in msg, f"the refusal must name the actual cause — got: {msg!r}"
+    assert "does not exist" not in msg, (
+        "telling someone an entity they can see in their own entity list does not "
+        "exist is what sent #67 looking in the wrong place"
+    )
+    assert "Re-enable it" in msg, "say what to do about it"
+    assert sel == [], "the refusal still refuses"

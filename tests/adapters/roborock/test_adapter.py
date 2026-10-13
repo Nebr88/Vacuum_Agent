@@ -1137,9 +1137,14 @@ def test_ms6_a_mop_it_cannot_command_is_still_a_mop(monkeypatch, hass):
         "a water tank with no intensity select is the S6's own shape: it HAS a mop. "
         "Narrowing has_mop on the control signal erases that."
     )
-    assert _water_pre_call(cfg) is None, (
-        "...and it still cannot be COMMANDED, so the pre-call that needs the select "
-        "must stay away — the two flags answer different questions"
+    assert _water_pre_call(cfg) is not None, (
+        "...AND THIS LINE USED TO ASSERT THE OPPOSITE. It read: it cannot be COMMANDED, "
+        "so the pre-call must stay away. That is what sends a mop-HAVING device into a "
+        "mixed run with no safe-water push — whatever the vendor app last set stays, and "
+        "the vacuum-only rooms get wet-mopped, silently. The #67 narrowing bought a loud "
+        "failure on mopless hardware by paying in a quiet one here. Only 'no mop module' "
+        "is grounds to narrow now; an unreachable control on a mop device falls through "
+        "to #51's abort, which is what that abort is for"
     )
 
 
@@ -1415,30 +1420,29 @@ def _q5_water_precall_armed(hass, monkeypatch, make_select=None):
 _Q5 = "vacuum.roborock_q5"
 
 
-def test_ms8_a_disabled_mop_select_is_not_a_mop_control(hass, monkeypatch):
-    """[MS-8] ISSUE #67, second report: the a34 that 2.2.5 did not fix.
+def test_ms8_a_mop_module_with_a_disabled_control_keeps_aborting(hass, monkeypatch):
+    """[MS-8] A disabled control on a device that CAN mop must still refuse the run.
 
-    The first cut of the #67 narrowing ORed the state machine with a bare registry hit,
-    and `EntityRegistry.async_get` answers for a DISABLED entry too. So a disabled mop
-    select read as a live control, the optimistic guess survived, and the safest-water
-    pre-call still aborted every clean with the identical error — the dispatcher's check
-    is a STATE check, which a disabled entity also fails.
+    THIS TEST ASSERTED THE OPPOSITE ONE COMMIT AGO, and the flip is the point. Its first
+    form was built from ISSUE #67's second report and said: a disabled select is not a
+    control, so do not arm the pre-call. True about the select — and the wrong conclusion
+    once the water box is also read, because this fixture's water box means the hardware
+    HAS a mop module.
 
-    A disabled entity can never receive `select_option`. Unlike the boot window it does
-    not resolve by waiting, so it belongs with ABSENT, which is what
-    `resolve_with_reason` has said all along.
+    On such a device we cannot lower the water, and proceeding would let a mixed batch
+    wet-mop the vacuum-only rooms. Refusing is the correct answer and the one #51 exists
+    to give. The reporter's own Q5 is NOT this case: it claims no mop module, so it is
+    narrowed by [MS-11] and never reaches here.
 
-    ABLATION: go back to `hass.states.get(...) is not None or registry.async_get(...)
-    is not None` and this goes red.
+    What the disabled case gets instead is a better REFUSAL — see [DM-5]: "does not
+    exist" is useless to someone looking at the entity they switched off themselves.
+
+    ABLATION: narrow on the control's reachability again and this goes red, together
+    with [MS-6] and [MS-10] — they are the same rule seen from three shapes.
     """
     from homeassistant.helpers import entity_registry as er
 
     def _disabled(registry, entry):
-        # The water box is REQUIRED here, and that is the point of its presence: it
-        # makes `_mop_module_claimed` true, so the ONLY thing that can narrow this
-        # device is the disabled rule. Without it the signal swap ([MS-11]) narrows on
-        # the missing mop module and this test passes without exercising its own claim
-        # — which is exactly what it did for one run after the swap landed.
         registry.async_get_or_create(
             "binary_sensor", "roborock", "q5_water_box_status",
             suggested_object_id="roborock_q5_water_box_attached", config_entry=entry,
@@ -1451,11 +1455,11 @@ def test_ms8_a_disabled_mop_select_is_not_a_mop_control(hass, monkeypatch):
 
     cfg, armed = _q5_water_precall_armed(hass, monkeypatch, _disabled)
 
-    assert armed is False, (
-        "the water pre-call was armed against a DISABLED select — it can never receive "
-        "the call, so every clean aborts on a missing target, which is #67 verbatim"
+    assert armed is True, (
+        "the water box says this hardware mops; skipping the safe-water push because "
+        "its control is switched off is how dry rooms get wet-mopped"
     )
-    assert cfg["capabilities"]["supports_water_control"] is False
+    assert cfg["capabilities"]["supports_mop_features"] is True
 
 
 def test_ms9_the_boot_window_still_keeps_the_guess(hass, monkeypatch):
@@ -1533,7 +1537,10 @@ def test_ms10_a_disabled_water_box_still_counts_as_HAVING_a_mop(hass, monkeypatc
 
     cfg, armed = _q5_water_precall_armed(hass, monkeypatch, _disabled_water_box)
 
-    assert armed is False, "no mop CONTROL exists, so the pre-call stays off"
+    assert armed is True, (
+        "a disabled water box still claims the mop module, and no control exists to "
+        "lower the water — so this refuses rather than running dry rooms wet ([MS-6])"
+    )
     assert cfg["capabilities"]["supports_mop_features"] is True, (
         "a disabled water-box sensor is still evidence the hardware has a mop; "
         "reporting no mop here would be the same conflation #67 came from"

@@ -156,6 +156,44 @@ carries `binary_sensor.<obj>_water_box_attached` (reading `unavailable`) alongsi
 `select.<obj>_mop_intensity`. Two existing tests had fixtures that registered only the
 select — a shape no mop device produces — and the swap is what exposed them.
 
+### Only "no mop module" narrows — reachability must not
+
+The matrix below is measured, one clean registry per cell:
+
+| water box | mop select | pre-call | why |
+|---|---|---|---|
+| registered, no state | registered, no state | **armed** | boot window on a mop device |
+| absent | registered, no state | narrowed | mopless — the shape a current library gives a Q5 |
+| state | registered, no state | **armed** | module claimed, control not up → #51's case |
+| state | **absent** | **armed** | module claimed, no control at all |
+| state | state | **armed** | working device |
+| absent | absent | narrowed | nothing claimed |
+
+Row four is the one that was wrong, and it was wrong from the original #67 fix rather
+than from the signal swap. The rule was *select absent ⇒ treat as mopless*, which is
+unarguable while the select is the only signal and false the moment the water box can
+contradict it. On a device whose water box is live the hardware **does** mop, so
+narrowing there skips the safe-water push and lets a mixed batch wet-mop the vacuum-only
+rooms — **silently**. #67 traded a loud failure on mopless hardware for a quiet one on
+real mop hardware; rarer, and worse when it lands.
+
+So the narrowing keys on `_mop_module_claimed` alone. An unreachable control on a
+module-claiming device keeps the optimistic guess and falls through to the abort, which
+is precisely what that abort is for.
+
+**`[MS-6]`, `[MS-8]` and `[MS-10]` all asserted the opposite before this.** They are the
+same rule seen from three shapes — water box with no select, water box with a disabled
+select, disabled water box with no select — and having it written down three times is
+why it read as settled. A green suite cannot see a rule that is consistently wrong.
+
+**The disabled case gets a better refusal rather than an exemption.** A disabled entity
+has no state, so it lands in the same missing-target branch as one that never existed,
+and "does not exist" is useless to the person looking at the entity they switched off
+themselves — #67's reporter spent an upgrade cycle on that sentence.
+`dispatch/manager.py` now reads `disabled_by` at the point of failure and says so, with
+what to do about it. The refusal is unchanged; only the explanation is. `[GPC-6f]` pins
+the wording, `[GPC-6d]` pins that the abort still fires.
+
 **And the rule stops at `mop_settable`.** `has_mop` asks whether the hardware HAS a mop,
 where a water-box sensor someone switched off is still evidence that it does; `mop_settable`
 asks whether we can SEND a command, where disabled is a definite no. `[MS-10]` pins the

@@ -203,20 +203,40 @@ def register_roborock_adapter_for_vacuum(
     _, _wb_reason = _resolve_with_reason(hass, [_water_box_id])
     # Registered-or-stated, DISABLED included: a water-box sensor someone switched off
     # is still proof the integration created it, which is still proof of the flag. This
-    # asks about HARDWARE, not reachability, so the disabled rule below does not apply.
+    # asks about HARDWARE, and nothing about whether a control can be reached.
     _mop_module_claimed = _wb_reason != _REASON_ABSENT
 
+    # NARROW ON THE MODULE CLAIM ALONE — the control's reachability must NOT narrow.
+    #
+    # The original #67 rule was "select absent => treat as mopless". Unarguable while
+    # the select was the only signal; wrong the moment the water box can contradict it.
+    # A device whose water box is live HAS a mop module, so if its control is missing we
+    # cannot lower the water — and proceeding silently is the wet-mop #51 exists to
+    # prevent. Narrowing there traded "every clean aborts on a mopless device" for
+    # "silently skip safe water on a mop device", which is rarer and worse.
+    #
+    # So an unreachable control on a module-claiming device keeps `mop_settable` True and
+    # falls through to the abort, which is exactly #51's case. Only "no mop module" is
+    # grounds to narrow. [MS-6], [MS-8] and [MS-10] are the same rule from three
+    # shapes; all three ASSERTED THE OPPOSITE before this and were the old rule written
+    # down three times, which is why it read as settled.
+    #
+    # The select is therefore no longer read here at all. Whether it is absent, disabled
+    # or merely late stopped being this function's business when reachability stopped
+    # being grounds to narrow — the one place that distinction still changes anything is
+    # the abort message, where "you switched it off" and "it is not there" need
+    # different advice. dispatch/manager.py draws it at the point of failure.
     _mop_intensity_id = build_entity_id(vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT)
-    _, _mop_reason = _resolve_with_reason(hass, [_mop_intensity_id])
-    _mop_control_reachable = _mop_reason not in (_REASON_ABSENT, _REASON_DISABLED)
-    _mop_is_commandable = _mop_module_claimed and _mop_control_reachable
+    _mop_is_commandable = _mop_module_claimed
     mop_settable = bool(profile.get("mop_settable", False))
     if mop_settable and profile is DEFAULT_PROFILE and not _mop_is_commandable:
         _LOGGER.debug(
             "roborock %s: uncatalogued model with no %s in the state machine or the "
-            "entity registry — treating it as mopless (issue #67) rather than letting "
-            "the safest-water pre-call abort every run",
-            vid, _mop_intensity_id,
+            "entity registry, so the device claims no mop module — treating it as "
+            "mopless (issue #67) rather than letting the safest-water pre-call abort "
+            "every run. Its %s is not consulted: that entity exists on every V1 "
+            "Roborock regardless of hardware",
+            vid, _water_box_id, _mop_intensity_id,
         )
         mop_settable = False
 
