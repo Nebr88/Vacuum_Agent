@@ -278,6 +278,17 @@ def get_setup_status(hass: HomeAssistant) -> dict[str, Any]:
             .get("live_map_image_entity"),
             "setup_steps": steps,
             "next_step": next_step,
+            # ISSUE #70 — which map `import_active_map` would actually act on.
+            #
+            # The card needs this to decide whether a newly-discovered room can be
+            # adopted at all. `import_active_map` takes NO map id: "only the map that is
+            # currently active on the device can be imported … a hard limitation of the
+            # upstream cloud API". So a drift row whose map_id is not this one has no
+            # route, and offering a button there would be offering a no-op.
+            #
+            # Same resolution the drift call above uses, so the two cannot disagree —
+            # a row's map_id and this id are compared directly by the card.
+            "active_map_id": _drift_map_id,
             "room_drift": drift,
             "reconciliation": reconciliation,
             "maps": maps_out,

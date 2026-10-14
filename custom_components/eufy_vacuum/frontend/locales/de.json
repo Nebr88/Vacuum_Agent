@@ -184,7 +184,8 @@
     "panel_renamed": "Panel umbenannt — aktualisiere zur Übernahme in der Seitenleiste",
     "failed_reconcile_dismiss": "Abgleich konnte nicht verworfen werden: {error}",
     "failed_reconcile_update": "Gespeicherte Räume konnten nicht aktualisiert werden: {error}",
-    "reconciliation_dismissed": "Verworfen — dieselbe Prüfung kann erneut erscheinen, wenn sich die Karte wieder ändert"
+    "reconciliation_dismissed": "Verworfen — dieselbe Prüfung kann erneut erscheinen, wenn sich die Karte wieder ändert",
+    "failed_adopt_room": "Raum konnte nicht hinzugefügt werden: {error}"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "{target} mit den ungespeicherten Änderungen überschreiben? Die übrigen Einstellungen von {target} bleiben unverändert.",
@@ -1509,7 +1510,7 @@
     "delete_warning": "<strong>{name}</strong> löschen? Dies entfernt alle Räume, den Verlauf und die Lerndaten für diese Karte aus der Integration. Die vorgelagerte Cloud-Karte ist nicht betroffen.",
     "deleting": "Wird gelöscht…",
     "description": "Die folgenden Schritte werden von deinem Saugroboter-Adapter deklariert. Jeder muss der Reihe nach abgeschlossen werden. Nach der Einrichtung entdeckte neue Räume erscheinen hier zur Überprüfung, bevor sie in die Raumbibliothek aufgenommen werden.",
-    "drift_new_hint": "Der Saugroboter meldet Räume, die du noch nicht konfiguriert hast. Konfiguriere die passende Karte, um sie einzubeziehen, oder lehne sie als Phantome ab.",
+    "drift_new_hint": "Der Saugroboter meldet Räume, die du noch nicht konfiguriert hast — etwa nachdem du in der App des Saugroboters einen Raum geteilt hast. Füge einen echten Raum hinzu, damit seine Einstellungen erhalten bleiben und er ein Reinigungsprofil bekommt, oder lehne ihn als Phantom ab, wenn es kein echter Raum ist.",
     "drift_new_title": "Neue Räume entdeckt ({count})",
     "drift_removed_hint": "Diese Räume fehlen lange genug in der Erkennung, um als entfernt bestätigt zu gelten. Konfiguriere die passende Karte neu, um sie zu entfernen.",
     "drift_removed_title": "Räume nicht mehr gemeldet ({count})",
@@ -1587,7 +1588,9 @@
       "has_access_graph": "Ein oder mehrere Räume sind Teil eines Zugangsgraphen."
     },
     "subtab_steps": "Einrichtungsschritte",
-    "subtab_system": "System"
+    "subtab_system": "System",
+    "adopt_room": "Raum hinzufügen",
+    "adopt_needs_active_map": "Wechsle den Saugroboter auf diese Karte, um ihn hinzuzufügen"
   },
   "shell": {
     "setup_add_title": "Füge deinen Saugroboter hinzu",

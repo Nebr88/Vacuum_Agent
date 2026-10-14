@@ -185,7 +185,8 @@
     "panel_renamed": "Painel renomeado — atualize para refrescar a barra lateral",
     "failed_reconcile_dismiss": "Falha ao dispensar a reconciliação: {error}",
     "failed_reconcile_update": "Falha ao atualizar as divisões guardadas: {error}",
-    "reconciliation_dismissed": "Dispensado — a mesma revisão pode voltar a aparecer se o mapa mudar novamente"
+    "reconciliation_dismissed": "Dispensado — a mesma revisão pode voltar a aparecer se o mapa mudar novamente",
+    "failed_adopt_room": "Falha ao adicionar a divisão: {error}"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "Substituir {target} pelas suas alterações não guardadas? As restantes definições de {target} permanecerão inalteradas.",
@@ -1524,7 +1525,7 @@
     "delete_warning": "Eliminar <strong>{name}</strong>? Isto remove todas as divisões, histórico e dados de aprendizagem deste mapa da integração. O mapa na nuvem de origem não é afetado.",
     "deleting": "A eliminar…",
     "description": "Os passos abaixo são declarados pelo adaptador do seu aspirador. Cada um deve ser concluído por ordem. As novas divisões descobertas após a configuração surgirão aqui para revisão antes de entrarem na biblioteca de divisões.",
-    "drift_new_hint": "O aspirador reporta divisões que ainda não configurou. Configure o mapa correspondente para as incluir, ou rejeite-as como fantasmas.",
+    "drift_new_hint": "O aspirador comunica divisões que ainda não configurou — por exemplo depois de dividir uma divisão na app do aspirador. Adicione uma divisão real para manter as definições e dar-lhe um perfil de limpeza, ou rejeite-a como fantasma se não for real.",
     "drift_new_title": "Novas divisões descobertas ({count})",
     "drift_removed_hint": "Estas divisões estão ausentes da descoberta há tempo suficiente para serem confirmadas como removidas. Reconfigure o mapa correspondente para as remover.",
     "drift_removed_title": "Divisões já não reportadas ({count})",
@@ -1602,7 +1603,9 @@
       "has_access_graph": "Uma ou mais divisões fazem parte de um grafo de acesso."
     },
     "subtab_steps": "Passos de configuração",
-    "subtab_system": "Sistema"
+    "subtab_system": "Sistema",
+    "adopt_room": "Adicionar divisão",
+    "adopt_needs_active_map": "Mude o aspirador para este mapa para a adicionar"
   },
   "shell": {
     "setup_add_title": "Adicione o seu aspirador",

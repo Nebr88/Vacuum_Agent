@@ -185,7 +185,8 @@
     "panel_renamed": "Panneau renommé — actualisez pour mettre à jour la barre latérale",
     "failed_reconcile_dismiss": "Échec du rejet de la réconciliation : {error}",
     "failed_reconcile_update": "Échec de la mise à jour des pièces enregistrées : {error}",
-    "reconciliation_dismissed": "Ignoré — la même vérification peut réapparaître si la carte change à nouveau"
+    "reconciliation_dismissed": "Ignoré — la même vérification peut réapparaître si la carte change à nouveau",
+    "failed_adopt_room": "Échec de l'ajout de la pièce : {error}"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "Remplacer {target} par vos modifications non enregistrées ? Les autres réglages de {target} resteront inchangés.",
@@ -1525,7 +1526,7 @@
     "delete_warning": "Supprimer <strong>{name}</strong> ? Cela retire toutes les pièces, l'historique et les données d'apprentissage de cette carte de l'intégration. La carte cloud en amont n'est pas affectée.",
     "deleting": "Suppression…",
     "description": "Les étapes ci-dessous sont déclarées par votre adaptateur d'aspirateur. Chacune doit être terminée dans l'ordre. Les nouvelles pièces découvertes après la configuration apparaîtront ici pour vérification avant d'entrer dans la bibliothèque de pièces.",
-    "drift_new_hint": "L'aspirateur signale des pièces que vous n'avez pas encore configurées. Configurez la carte correspondante pour les inclure, ou rejetez-les comme fantômes.",
+    "drift_new_hint": "L'aspirateur signale des pièces que vous n'avez pas encore configurées — par exemple après avoir divisé une pièce dans l'application de l'aspirateur. Ajoutez une pièce réelle pour conserver ses réglages et lui donner un profil de nettoyage, ou rejetez-la comme fantôme si ce n'est pas une vraie pièce.",
     "drift_new_title": "Nouvelles pièces découvertes ({count})",
     "drift_removed_hint": "Ces pièces ont été absentes de la découverte assez longtemps pour être confirmées comme supprimées. Reconfigurez la carte correspondante pour les retirer.",
     "drift_removed_title": "Pièces qui ne sont plus signalées ({count})",
@@ -1603,7 +1604,9 @@
       "has_access_graph": "Une ou plusieurs pièces font partie d'un graphe d'accès."
     },
     "subtab_steps": "Étapes de configuration",
-    "subtab_system": "Système"
+    "subtab_system": "Système",
+    "adopt_room": "Ajouter la pièce",
+    "adopt_needs_active_map": "Basculez l'aspirateur sur cette carte pour l'ajouter"
   },
   "shell": {
     "setup_add_title": "Ajoutez votre aspirateur",

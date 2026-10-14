@@ -1871,7 +1871,7 @@
     "delete_warning": "Usunąć <strong>{name}</strong>? Spowoduje to usunięcie z integracji wszystkich pokoi, historii i danych uczenia się dla tej mapy. Nie wpłynie to na źródłową mapę w chmurze.",
     "deleting": "Usuwanie…",
     "description": "Poniższe kroki są zadeklarowane przez adapter Twojego odkurzacza. Każdy musi zostać ukończony po kolei. Nowe pokoje wykryte po konfiguracji pojawią się tutaj do przejrzenia, zanim trafią do biblioteki pokoi.",
-    "drift_new_hint": "Odkurzacz zgłasza pokoje, których jeszcze nie skonfigurowano. Skonfiguruj odpowiednią mapę, aby je uwzględnić, lub odrzuć je jako widma.",
+    "drift_new_hint": "Odkurzacz zgłasza pomieszczenia, których jeszcze nie skonfigurowano — na przykład po podzieleniu pokoju w aplikacji odkurzacza. Dodaj prawdziwe, aby zachować jego ustawienia i nadać mu profil sprzątania, albo odrzuć je jako duch, jeśli nie jest prawdziwe.",
     "drift_new_title": "Wykryto nowe pokoje ({count})",
     "drift_removed_hint": "Tych pokoi brakuje w wykrywaniu wystarczająco długo, aby potwierdzić ich usunięcie. Skonfiguruj ponownie odpowiednią mapę, aby je usunąć.",
     "drift_removed_title": "Pokoje już nie zgłaszane ({count})",
@@ -1940,7 +1940,9 @@
       "has_access_graph": "Co najmniej jedno pomieszczenie należy do grafu dostępu."
     },
     "subtab_steps": "Kroki konfiguracji",
-    "subtab_system": "System"
+    "subtab_system": "System",
+    "adopt_room": "Dodaj pomieszczenie",
+    "adopt_needs_active_map": "Przełącz odkurzacz na tę mapę, aby je dodać"
   },
   "theme": {
     "alpha_aria_label": "Krycie {label}",
@@ -2534,7 +2536,8 @@
     "panel_renamed": "Zmieniono nazwę panelu — odśwież, aby zaktualizować panel boczny",
     "failed_reconcile_dismiss": "Nie udało się odrzucić uzgodnienia: {error}",
     "failed_reconcile_update": "Nie udało się zaktualizować zapisanych pokoi: {error}",
-    "reconciliation_dismissed": "Odrzucono — ten sam przegląd może pojawić się ponownie, jeśli mapa znowu się zmieni"
+    "reconciliation_dismissed": "Odrzucono — ten sam przegląd może pojawić się ponownie, jeśli mapa znowu się zmieni",
+    "failed_adopt_room": "Nie udało się dodać pomieszczenia: {error}"
   },
   "mobile": {
     "dock_status_label": "Stan stacji dokującej:",

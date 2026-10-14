@@ -1871,7 +1871,7 @@
     "delete_warning": "Hapus <strong>{name}</strong>? Ini menghapus semua ruangan, riwayat, dan data pembelajaran untuk peta ini dari integrasi. Peta cloud hulu tidak terpengaruh.",
     "deleting": "Menghapus…",
     "description": "Langkah-langkah di bawah dideklarasikan oleh adapter penyedot debu Anda. Masing-masing harus diselesaikan secara berurutan. Ruangan baru yang ditemukan setelah penyiapan akan muncul di sini untuk ditinjau sebelum masuk ke pustaka ruangan.",
-    "drift_new_hint": "Penyedot debu melaporkan ruangan yang belum Anda konfigurasi. Konfigurasi peta yang cocok untuk menyertakannya, atau tolak sebagai hantu.",
+    "drift_new_hint": "Penyedot debu melaporkan ruangan yang belum Anda konfigurasikan — misalnya setelah membagi ruangan di aplikasi penyedot debu. Tambahkan yang nyata agar pengaturannya tersimpan dan mendapat profil pembersihan, atau tolak sebagai hantu jika bukan ruangan nyata.",
     "drift_new_title": "Ruangan baru ditemukan ({count})",
     "drift_removed_hint": "Ruangan-ruangan ini telah hilang dari penemuan cukup lama untuk dikonfirmasi telah dihapus. Konfigurasi ulang peta yang cocok untuk menghapusnya.",
     "drift_removed_title": "Ruangan tidak lagi dilaporkan ({count})",
@@ -1937,7 +1937,9 @@
       "has_access_graph": "Satu ruangan atau lebih merupakan bagian dari grafik akses."
     },
     "subtab_steps": "Langkah penyiapan",
-    "subtab_system": "Sistem"
+    "subtab_system": "Sistem",
+    "adopt_room": "Tambah ruangan",
+    "adopt_needs_active_map": "Alihkan penyedot debu ke peta ini untuk menambahkannya"
   },
   "theme": {
     "alpha_aria_label": "Opasitas {label}",
@@ -2531,7 +2533,8 @@
     "panel_renamed": "Panel diganti nama — segarkan untuk memperbarui bilah sisi",
     "failed_reconcile_dismiss": "Gagal mengabaikan rekonsiliasi: {error}",
     "failed_reconcile_update": "Gagal memperbarui ruangan tersimpan: {error}",
-    "reconciliation_dismissed": "Diabaikan — tinjauan yang sama dapat muncul kembali jika peta berubah lagi"
+    "reconciliation_dismissed": "Diabaikan — tinjauan yang sama dapat muncul kembali jika peta berubah lagi",
+    "failed_adopt_room": "Gagal menambahkan ruangan: {error}"
   },
   "mobile": {
     "dock_status_label": "Status Dok:",

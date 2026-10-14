@@ -184,7 +184,8 @@
     "panel_renamed": "Paneel hernoemd — ververs om de zijbalk bij te werken",
     "failed_reconcile_dismiss": "Reconciliatie negeren mislukt: {error}",
     "failed_reconcile_update": "Opgeslagen kamers bijwerken mislukt: {error}",
-    "reconciliation_dismissed": "Genegeerd — dezelfde controle kan opnieuw verschijnen als de kaart weer verandert"
+    "reconciliation_dismissed": "Genegeerd — dezelfde controle kan opnieuw verschijnen als de kaart weer verandert",
+    "failed_adopt_room": "Kamer toevoegen mislukt: {error}"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "{target} overschrijven met je niet-opgeslagen wijzigingen? De overige instellingen van {target} blijven ongewijzigd.",
@@ -1509,7 +1510,7 @@
     "delete_warning": "<strong>{name}</strong> verwijderen? Hiermee worden alle kamers, geschiedenis en leergegevens voor deze kaart uit de integratie verwijderd. De cloudkaart van de leverancier wordt niet beïnvloed.",
     "deleting": "Verwijderen…",
     "description": "De onderstaande stappen zijn gedeclareerd door je stofzuigeradapter. Elk moet op volgorde worden voltooid. Nieuwe kamers die na het instellen worden ontdekt, verschijnen hier ter beoordeling voordat ze in de kamerbibliotheek terechtkomen.",
-    "drift_new_hint": "De stofzuiger rapporteert kamers die je nog niet hebt geconfigureerd. Configureer de bijbehorende kaart om ze op te nemen, of wijs ze af als spookkamers.",
+    "drift_new_hint": "De stofzuiger meldt kamers die je nog niet hebt geconfigureerd — bijvoorbeeld nadat je een kamer hebt gesplitst in de app van de stofzuiger. Voeg een echte kamer toe zodat de instellingen behouden blijven en hij een schoonmaakprofiel krijgt, of wijs hem af als spookkamer als het geen echte kamer is.",
     "drift_new_title": "Nieuwe kamers ontdekt ({count})",
     "drift_removed_hint": "Deze kamers ontbreken lang genoeg in de detectie om als verwijderd te worden bevestigd. Herconfigureer de bijbehorende kaart om ze te verwijderen.",
     "drift_removed_title": "Kamers niet langer gerapporteerd ({count})",
@@ -1587,7 +1588,9 @@
       "has_access_graph": "Een of meer kamers maken deel uit van een toegangsgraaf."
     },
     "subtab_steps": "Installatiestappen",
-    "subtab_system": "Systeem"
+    "subtab_system": "Systeem",
+    "adopt_room": "Kamer toevoegen",
+    "adopt_needs_active_map": "Zet de stofzuiger op deze kaart om hem toe te voegen"
   },
   "shell": {
     "setup_add_title": "Voeg je stofzuiger toe",

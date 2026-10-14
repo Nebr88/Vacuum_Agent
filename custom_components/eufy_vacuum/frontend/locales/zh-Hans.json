@@ -2204,7 +2204,7 @@
     "delete_warning": "删除 <strong>{name}</strong>？这将从集成中移除该地图的所有房间、历史记录和学习数据。上游云端地图不受影响。",
     "deleting": "删除中…",
     "description": "以下步骤由您的扫地机器人适配器声明，须按顺序逐一完成。设置完成后发现的新房间将在此处显示以供复核，然后才会进入房间库。",
-    "drift_new_hint": "扫地机器人报告了您尚未配置的房间。配置对应的地图以将其纳入，或作为幽灵房间拒绝。",
+    "drift_new_hint": "扫地机报告了尚未配置的房间，例如在扫地机自己的应用中拆分房间之后。添加真实房间可保留其设置并为其分配清扫配置文件；如果不是真实房间，请将其拒绝为幻影房间。",
     "drift_new_title": "发现新房间（{count}）",
     "drift_removed_hint": "这些房间已长时间未在发现中出现，可确认为已移除。重新配置对应的地图以移除它们。",
     "drift_removed_title": "不再报告的房间（{count}）",
@@ -2268,7 +2268,9 @@
       "has_access_graph": "一个或多个房间属于通行关系图。"
     },
     "subtab_steps": "设置步骤",
-    "subtab_system": "系统"
+    "subtab_system": "系统",
+    "adopt_room": "添加房间",
+    "adopt_needs_active_map": "请将扫地机切换到此地图后再添加"
   },
   "external_jobs": {
     "back": "返回",
@@ -2450,7 +2452,8 @@
     "panel_renamed": "面板已重命名——刷新以更新侧边栏",
     "failed_reconcile_dismiss": "忽略核对失败：{error}",
     "failed_reconcile_update": "更新已保存的房间失败：{error}",
-    "reconciliation_dismissed": "已忽略——如果地图再次变化，相同的核对项可能会重新出现"
+    "reconciliation_dismissed": "已忽略——如果地图再次变化，相同的核对项可能会重新出现",
+    "failed_adopt_room": "添加房间失败：{error}"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "确认失败：{detail}",

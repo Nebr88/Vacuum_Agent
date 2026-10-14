@@ -323,6 +323,7 @@ export const en = {
   "bind_setup.failed_load_rooms": "Failed to load rooms: {error}",
   "bind_setup.failed_reconcile_dismiss": "Failed to dismiss reconciliation: {error}",
   "bind_setup.failed_reconcile_update": "Failed to update saved rooms: {error}",
+  "bind_setup.failed_adopt_room": "Failed to add room: {error}",
   "bind_setup.failed_reject_room": "Failed to reject room: {error}",
   "bind_setup.failed_rename_panel": "Failed to rename panel: {error}",
   "bind_setup.failed_save_rooms": "Failed to save rooms: {error}",
@@ -1653,7 +1654,9 @@ export const en = {
   "setup.delete_warning": "Delete <strong>{name}</strong>? This removes all rooms, history, and learning data for this map from the integration. The upstream cloud map is not affected.",
   "setup.deleting": "Deleting…",
   "setup.description": "Steps below are declared by your vacuum adapter. Each must complete in order. New rooms discovered after setup will surface here for review before they enter the room library.",
-  "setup.drift_new_hint": "The vacuum reports rooms you haven't configured yet. Configure the matching map to include them, or reject as phantoms.",
+  "setup.drift_new_hint": "The vacuum reports rooms you haven't configured yet — after splitting a room in the vacuum's own app, for example. Add a real one to keep its settings and give it a cleaning profile, or reject it as a phantom if it isn't a real room.",  // Drift panel intro. Said "Configure the matching map to include them" until ISSUE #70: that is the step this panel is drawn INSIDE, and the one step that cannot adopt a new room.
+  "setup.adopt_room": "Add room",  // Drift button: take a newly-discovered room into management (re-imports the active map)
+  "setup.adopt_needs_active_map": "Switch the vacuum to this map to add it",  // Shown instead of Add room: only the device's ACTIVE map can be imported
   "setup.drift_new_title": "New rooms discovered ({count})",
   "setup.drift_removed_hint": "These rooms have been missing from discovery long enough to be confirmed removed. Reconfigure the matching map to drop them.",
   "setup.drift_removed_title": "Rooms no longer reported ({count})",

@@ -913,7 +913,9 @@
     "delete_warning": "Delete <strong>{name}</strong>? This removes all rooms, history, and learning data for this map from the integration. The upstream cloud map is not affected.",
     "deleting": "Deleting…",
     "description": "Steps below are declared by your vacuum adapter. Each must complete in order. New rooms discovered after setup will surface here for review before they enter the room library.",
-    "drift_new_hint": "The vacuum reports rooms you haven't configured yet. Configure the matching map to include them, or reject as phantoms.",
+    "drift_new_hint": "The vacuum reports rooms you haven't configured yet — after splitting a room in the vacuum's own app, for example. Add a real one to keep its settings and give it a cleaning profile, or reject it as a phantom if it isn't a real room.",  // Drift panel intro. Said "Configure the matching map to include them" until ISSUE #70: that is the step this panel is drawn INSIDE, and the one step that cannot adopt a new room.
+    "adopt_room": "Add room",  // Drift button: take a newly-discovered room into management (re-imports the active map)
+    "adopt_needs_active_map": "Switch the vacuum to this map to add it",  // Shown instead of Add room: only the device's ACTIVE map can be imported
     "drift_new_title": "New rooms discovered ({count})",
     "drift_removed_hint": "These rooms have been missing from discovery long enough to be confirmed removed. Reconfigure the matching map to drop them.",
     "drift_removed_title": "Rooms no longer reported ({count})",
@@ -1100,6 +1102,7 @@
     "failed_load_rooms": "Failed to load rooms: {error}",
     "failed_reconcile_dismiss": "Failed to dismiss reconciliation: {error}",
     "failed_reconcile_update": "Failed to update saved rooms: {error}",
+    "failed_adopt_room": "Failed to add room: {error}",
     "failed_reject_room": "Failed to reject room: {error}",
     "failed_rename_panel": "Failed to rename panel: {error}",
     "failed_save_rooms": "Failed to save rooms: {error}",

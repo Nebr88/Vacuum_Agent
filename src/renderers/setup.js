@@ -266,6 +266,8 @@ export function applySetupRenderers(proto) {
 
     const renderDriftPanel = (drift, vacuumEntry) => {
       if (!drift || drift.in_sync) return "";
+      // Only the device's ACTIVE map can be imported, so only its rows get Adopt.
+      const activeMapId = vacuumEntry?.active_map_id ?? null;
 
       const newRooms       = Array.isArray(drift.new_rooms)       ? drift.new_rooms       : [];
       const removedRooms   = Array.isArray(drift.removed_rooms)   ? drift.removed_rooms   : [];
@@ -284,10 +286,39 @@ export function applySetupRenderers(proto) {
             ${this.t("setup.drift_new_hint")}
           </div>
           <div class="evcc-setup-drift-list">
-            ${newRooms.map((r) => `
+            ${newRooms.map((r) => {
+              /* ISSUE #70 — ADOPT sits beside REJECT, because only one of the two was
+                 ever reachable from here. The row announced a real room and offered a
+                 single button that called it a phantom; the hint pointed at "configure
+                 the matching map", which is the step this panel is drawn INSIDE and the
+                 one step structurally unable to adopt it (its editor lists MANAGED
+                 rooms, so a never-managed room cannot appear there however fresh
+                 discovery is). The working path was re-running Import Active Map, and
+                 nothing said so.
+
+                 Adopt therefore fires the EXISTING import action rather than a new
+                 write path: import already calls save_managed_rooms(enabled_room_ids=
+                 None) — include every discovered room — and build_managed_rooms
+                 preserves existing per-room settings for rooms still discovered. So
+                 this is the tested route with a button on it, not a second one.
+
+                 OFFERED ONLY FOR THE ACTIVE MAP. import_active_map takes no map id;
+                 upstream cannot import a map that is not currently active. On any other
+                 map the row says why instead of offering a button that would no-op. */
+              const adoptable = activeMapId != null
+                && String(r.map_id ?? "") === String(activeMapId);
+              return `
               <div class="evcc-setup-drift-row">
                 <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? this.t("setup.room_n", { id: r.room_id }))}</span>
                 <span class="evcc-setup-drift-room-map muted">${this.t("setup.map_label", { id: this.escapeHtml(String(r.map_id ?? "")) })}</span>
+                ${adoptable ? `
+                <button class="evcc-setup-btn primary small"
+                        data-action="setup-adopt-room"
+                        data-room-id="${r.room_id}"
+                        ${loading ? "disabled" : ""}>
+                  ${this.t("setup.adopt_room")}
+                </button>` : `
+                <span class="evcc-setup-drift-inactive muted">${this.t("setup.adopt_needs_active_map")}</span>`}
                 <button class="evcc-setup-btn secondary small"
                         data-action="setup-reject-room"
                         data-room-id="${r.room_id}"
@@ -295,7 +326,7 @@ export function applySetupRenderers(proto) {
                   ${this.t("setup.reject_as_phantom")}
                 </button>
               </div>
-            `).join("")}
+            `;}).join("")}
           </div>
         </div>
       `;

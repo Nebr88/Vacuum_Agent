@@ -2204,7 +2204,7 @@
     "delete_warning": "刪除 <strong>{name}</strong>？這會從整合中移除此地圖的所有房間、歷史與學習資料。上游雲端地圖不受影響。",
     "deleting": "刪除中…",
     "description": "以下步驟由您的掃地機轉接器宣告，必須依序完成。設定完成後新發現的房間會在此處顯示以供審核，通過後才會進入房間庫。",
-    "drift_new_hint": "掃地機回報了您尚未設定的房間。設定對應的地圖以納入它們，或拒絕為幽靈房間。",
+    "drift_new_hint": "掃地機回報了尚未設定的房間，例如在掃地機自己的應用程式中分割房間之後。加入真實房間可保留其設定並指派清掃設定檔；若不是真實房間，請將其拒絕為幻影房間。",
     "drift_new_title": "發現新房間（{count}）",
     "drift_removed_hint": "這些房間已從偵測中消失夠久，確認為已移除。請重新設定對應的地圖以移除它們。",
     "drift_removed_title": "不再回報的房間（{count}）",
@@ -2268,7 +2268,9 @@
       "has_access_graph": "一個或多個房間屬於通行關係圖。"
     },
     "subtab_steps": "設定步驟",
-    "subtab_system": "系統"
+    "subtab_system": "系統",
+    "adopt_room": "新增房間",
+    "adopt_needs_active_map": "請將掃地機切換到此地圖後再新增"
   },
   "external_jobs": {
     "back": "返回",
@@ -2450,7 +2452,8 @@
     "panel_renamed": "面板已重新命名 — 請重新整理以更新側邊欄",
     "failed_reconcile_dismiss": "略過核對失敗：{error}",
     "failed_reconcile_update": "更新已儲存的房間失敗：{error}",
-    "reconciliation_dismissed": "已略過——如果地圖再次變化，相同的核對項可能會重新出現"
+    "reconciliation_dismissed": "已略過——如果地圖再次變化，相同的核對項可能會重新出現",
+    "failed_adopt_room": "新增房間失敗：{error}"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "確認失敗：{detail}",

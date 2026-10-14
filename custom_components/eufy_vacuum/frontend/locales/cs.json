@@ -1871,7 +1871,7 @@
     "delete_warning": "Smazat <strong>{name}</strong>? Tímto se z integrace odstraní všechny místnosti, historie a data učení pro tuto mapu. Nadřazená cloudová mapa tím není dotčena.",
     "deleting": "Maže se…",
     "description": "Kroky níže jsou deklarovány adaptérem vašeho vysavače. Každý musí být dokončen v pořadí. Nové místnosti objevené po nastavení se zde zobrazí ke kontrole, než se dostanou do knihovny místností.",
-    "drift_new_hint": "Vysavač hlásí místnosti, které jste dosud nenakonfigurovali. Nakonfigurujte odpovídající mapu, abyste je zahrnuli, nebo je odmítněte jako fantomové.",
+    "drift_new_hint": "Vysavač hlásí místnosti, které jste zatím nenakonfigurovali — třeba poté, co jste místnost rozdělili v aplikaci vysavače. Skutečnou místnost přidejte, aby si zachovala nastavení a dostala úklidový profil, nebo ji odmítněte jako fantom, pokud skutečná není.",
     "drift_new_title": "Objeveny nové místnosti ({count})",
     "drift_removed_hint": "Tyto místnosti chybí ve zjišťování dostatečně dlouho na to, aby byly potvrzeny jako odebrané. Znovu nakonfigurujte odpovídající mapu, abyste je odstranili.",
     "drift_removed_title": "Místnosti již nehlášeny ({count})",
@@ -1939,7 +1939,9 @@
       "has_access_graph": "Jedna nebo více místností je součástí grafu přístupu."
     },
     "subtab_steps": "Kroky nastavení",
-    "subtab_system": "Systém"
+    "subtab_system": "Systém",
+    "adopt_room": "Přidat místnost",
+    "adopt_needs_active_map": "Přepněte vysavač na tuto mapu, abyste ji mohli přidat"
   },
   "theme": {
     "alpha_aria_label": "Krytí {label}",
@@ -2533,7 +2535,8 @@
     "panel_renamed": "Panel přejmenován — obnovte stránku pro aktualizaci postranního panelu",
     "failed_reconcile_dismiss": "Nepodařilo se zamítnout sesouhlasení: {error}",
     "failed_reconcile_update": "Nepodařilo se aktualizovat uložené místnosti: {error}",
-    "reconciliation_dismissed": "Zamítnuto — stejná kontrola se může znovu objevit, pokud se mapa znovu změní"
+    "reconciliation_dismissed": "Zamítnuto — stejná kontrola se může znovu objevit, pokud se mapa znovu změní",
+    "failed_adopt_room": "Místnost se nepodařilo přidat: {error}"
   },
   "mobile": {
     "dock_status_label": "Stav doku:",

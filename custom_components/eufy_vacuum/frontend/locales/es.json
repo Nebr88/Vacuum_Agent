@@ -185,7 +185,8 @@
     "panel_renamed": "Panel renombrado; actualiza para refrescar la barra lateral",
     "failed_reconcile_dismiss": "No se pudo descartar la conciliación: {error}",
     "failed_reconcile_update": "No se pudieron actualizar las habitaciones guardadas: {error}",
-    "reconciliation_dismissed": "Descartado: la misma revisión puede volver a aparecer si el mapa cambia de nuevo"
+    "reconciliation_dismissed": "Descartado: la misma revisión puede volver a aparecer si el mapa cambia de nuevo",
+    "failed_adopt_room": "No se pudo añadir la habitación: {error}"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "¿Sobrescribir {target} con tus cambios sin guardar? El resto de la configuración de {target} permanecerá igual.",
@@ -1525,7 +1526,7 @@
     "delete_warning": "¿Eliminar <strong>{name}</strong>? Esto borra de la integración todas las habitaciones, el historial y los datos de aprendizaje de este mapa. El mapa en la nube de origen no se ve afectado.",
     "deleting": "Eliminando…",
     "description": "Los pasos de abajo los declara el adaptador de tu aspirador. Cada uno debe completarse en orden. Las nuevas habitaciones descubiertas tras la configuración aparecerán aquí para su revisión antes de entrar en la biblioteca de habitaciones.",
-    "drift_new_hint": "El aspirador reporta habitaciones que aún no has configurado. Configura el mapa correspondiente para incluirlas, o recházalas como fantasmas.",
+    "drift_new_hint": "El aspirador informa de habitaciones que aún no has configurado, por ejemplo tras dividir una habitación en la app del aspirador. Añade una real para conservar sus ajustes y darle un perfil de limpieza, o recházala como fantasma si no es una habitación real.",
     "drift_new_title": "Nuevas habitaciones descubiertas ({count})",
     "drift_removed_hint": "Estas habitaciones llevan ausentes del descubrimiento el tiempo suficiente para confirmarse como eliminadas. Vuelve a configurar el mapa correspondiente para descartarlas.",
     "drift_removed_title": "Habitaciones que ya no se reportan ({count})",
@@ -1603,7 +1604,9 @@
       "has_access_graph": "Una o más habitaciones forman parte de un gráfico de acceso."
     },
     "subtab_steps": "Pasos de configuración",
-    "subtab_system": "Sistema"
+    "subtab_system": "Sistema",
+    "adopt_room": "Añadir habitación",
+    "adopt_needs_active_map": "Cambia el aspirador a este mapa para añadirla"
   },
   "shell": {
     "setup_add_title": "Añade tu aspirador",

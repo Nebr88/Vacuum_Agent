@@ -14,6 +14,7 @@
  *
  * Step 3 room config actions:
  *   [data-action="setup-configure-map"]   data-map-id
+ *   [data-action="setup-adopt-room"]      data-room-id  (ISSUE #70)
  *   [data-action="setup-toggle-room"]     data-room-id
  *   [data-action="setup-set-floor-type"]  data-room-id  data-floor-type
  *   [data-action="setup-save-rooms"]      data-map-id
@@ -435,6 +436,41 @@ export function applySetupBindings(proto) {
         card._state.setSetupDeleteDeleting?.(false);
         card.showToast?.(this.t("bind_setup.map_delete_failed"), { kind: "error" });
       } finally {
+        card._scheduleRender();
+      }
+    });
+
+    /* -------------------------------------------------------
+       ADOPT ROOM — take a newly-discovered room into management
+       ISSUE #70. Deliberately NOT a new write path: it re-runs the
+       import, which already calls save_managed_rooms with
+       enabled_room_ids=None ("include every discovered room") and
+       preserves existing per-room settings for rooms still
+       discovered. The renderer only offers this on the ACTIVE map,
+       because import_active_map takes no map id and upstream cannot
+       import any other.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-adopt-room']", "click", async (e) => {
+      const roomId         = Number(e.currentTarget.dataset.roomId);
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      if (!Number.isFinite(roomId) || !vacuumEntityId) return;
+
+      card._state.setSetupLoading?.(true);
+      card._state.setSetupError?.(null);
+      card._state.setSetupLastResult?.(null);
+      card._scheduleRender();
+
+      try {
+        const result = await card._actions.importActiveMap?.(vacuumEntityId);
+        card._state.setSetupLastResult?.(result);
+        const statusResult = await card._actions.getSetupStatus?.();
+        card._state.setSetupStatus?.(statusResult);
+      } catch (err) {
+        card._state.setSetupError?.(
+          this.tRaw("bind_setup.failed_adopt_room", { error: err?.message ?? String(err) }),
+        );
+      } finally {
+        card._state.setSetupLoading?.(false);
         card._scheduleRender();
       }
     });

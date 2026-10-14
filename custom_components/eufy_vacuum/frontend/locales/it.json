@@ -184,7 +184,8 @@
     "panel_renamed": "Pannello rinominato — aggiorna per aggiornare la barra laterale",
     "failed_reconcile_dismiss": "Impossibile ignorare la riconciliazione: {error}",
     "failed_reconcile_update": "Aggiornamento delle stanze salvate non riuscito: {error}",
-    "reconciliation_dismissed": "Ignorato — la stessa verifica può ripresentarsi se la mappa cambia di nuovo"
+    "reconciliation_dismissed": "Ignorato — la stessa verifica può ripresentarsi se la mappa cambia di nuovo",
+    "failed_adopt_room": "Impossibile aggiungere la stanza: {error}"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "Sovrascrivere {target} con le modifiche non salvate? Le altre impostazioni di {target} rimarranno invariate.",
@@ -1512,7 +1513,7 @@
     "delete_warning": "Eliminare <strong>{name}</strong>? Questo rimuove tutte le stanze, la cronologia e i dati di apprendimento di questa mappa dall'integrazione. La mappa cloud a monte non viene modificata.",
     "deleting": "Eliminazione…",
     "description": "I passaggi sotto sono dichiarati dal tuo adattatore dell'aspirapolvere. Ciascuno deve essere completato nell'ordine. Le nuove stanze scoperte dopo la configurazione compariranno qui per la revisione prima di entrare nella libreria delle stanze.",
-    "drift_new_hint": "L'aspirapolvere segnala stanze che non hai ancora configurato. Configura la mappa corrispondente per includerle, oppure rifiutale come fantasma.",
+    "drift_new_hint": "L'aspirapolvere segnala stanze non ancora configurate, ad esempio dopo aver diviso una stanza nell'app dell'aspirapolvere. Aggiungi quelle reali per conservarne le impostazioni e assegnare un profilo di pulizia, oppure rifiutale come fantasma se non sono stanze reali.",
     "drift_new_title": "Nuove stanze scoperte ({count})",
     "drift_removed_hint": "Queste stanze sono mancate dalla scoperta abbastanza a lungo da essere confermate rimosse. Riconfigura la mappa corrispondente per eliminarle.",
     "drift_removed_title": "Stanze non più segnalate ({count})",
@@ -1590,7 +1591,9 @@
       "has_access_graph": "Una o più stanze fanno parte di un grafo di accesso."
     },
     "subtab_steps": "Passaggi di configurazione",
-    "subtab_system": "Sistema"
+    "subtab_system": "Sistema",
+    "adopt_room": "Aggiungi stanza",
+    "adopt_needs_active_map": "Passa l'aspirapolvere a questa mappa per aggiungerla"
   },
   "shell": {
     "setup_add_title": "Aggiungi il tuo aspirapolvere",

@@ -1871,7 +1871,7 @@
     "delete_warning": "<strong>{name}</strong> silinsin mi? Bu, bu haritaya ait tüm odaları, geçmişi ve öğrenme verilerini entegrasyondan kaldırır. Üst kaynaktaki bulut haritası etkilenmez.",
     "deleting": "Siliniyor…",
     "description": "Aşağıdaki adımlar robot süpürge bağdaştırıcınız tarafından tanımlanır. Her biri sırayla tamamlanmalıdır. Kurulumdan sonra keşfedilen yeni odalar, oda kitaplığına girmeden önce burada incelemeniz için görünür.",
-    "drift_new_hint": "Robot süpürge henüz yapılandırmadığınız odaları bildiriyor. Bunları dahil etmek için eşleşen haritayı yapılandırın veya hayalet olarak reddedin.",
+    "drift_new_hint": "Süpürge henüz yapılandırmadığınız odaları bildiriyor — örneğin süpürgenin kendi uygulamasında bir odayı böldükten sonra. Gerçek olanı ekleyin ki ayarları korunsun ve bir temizlik profili alsın; gerçek bir oda değilse hayalet olarak reddedin.",
     "drift_new_title": "Yeni keşfedilen odalar ({count})",
     "drift_removed_hint": "Bu odalar, kaldırıldıklarının onaylanmasına yetecek kadar uzun süredir keşiflerde eksik. Bunları çıkarmak için eşleşen haritayı yeniden yapılandırın.",
     "drift_removed_title": "Artık bildirilmeyen odalar ({count})",
@@ -1937,7 +1937,9 @@
       "has_access_graph": "Bir veya daha fazla oda erişim grafiğinin parçası."
     },
     "subtab_steps": "Kurulum adımları",
-    "subtab_system": "Sistem"
+    "subtab_system": "Sistem",
+    "adopt_room": "Oda ekle",
+    "adopt_needs_active_map": "Eklemek için süpürgeyi bu haritaya geçirin"
   },
   "theme": {
     "alpha_aria_label": "{label} opaklığı",
@@ -2531,7 +2533,8 @@
     "panel_renamed": "Panel yeniden adlandırıldı — kenar çubuğunu güncellemek için yenileyin",
     "failed_reconcile_dismiss": "Uzlaştırma yoksayılamadı: {error}",
     "failed_reconcile_update": "Kayıtlı odalar güncellenemedi: {error}",
-    "reconciliation_dismissed": "Yoksayıldı — harita tekrar değişirse aynı inceleme yeniden ortaya çıkabilir"
+    "reconciliation_dismissed": "Yoksayıldı — harita tekrar değişirse aynı inceleme yeniden ortaya çıkabilir",
+    "failed_adopt_room": "Oda eklenemedi: {error}"
   },
   "mobile": {
     "dock_status_label": "Şarj İstasyonu Durumu:",

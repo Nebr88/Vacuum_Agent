@@ -2204,7 +2204,7 @@
     "delete_warning": "<strong>{name}</strong>을(를) 삭제하시겠습니까? 이 지도의 모든 방, 기록, 학습 데이터가 통합에서 제거됩니다. 클라우드 원본 지도는 영향을 받지 않습니다.",
     "deleting": "삭제 중…",
     "description": "아래 단계는 로봇청소기 어댑터가 선언합니다. 각 단계는 순서대로 완료해야 합니다. 설정 후 발견된 새 방은 방 라이브러리에 추가되기 전에 여기에서 검토할 수 있습니다.",
-    "drift_new_hint": "로봇청소기가 아직 설정하지 않은 방을 보고합니다. 해당 지도를 설정하여 포함하거나 유령 방으로 거부하세요.",
+    "drift_new_hint": "청소기가 아직 설정하지 않은 방을 보고하고 있습니다. 청소기 앱에서 방을 나눈 경우 등입니다. 실제 방은 추가하면 설정이 유지되고 청소 프로필이 지정됩니다. 실제 방이 아니면 팬텀으로 거부하세요.",
     "drift_new_title": "새 방 발견됨 ({count})",
     "drift_removed_hint": "이 방들은 발견 과정에서 오랫동안 누락되어 제거된 것으로 확인되었습니다. 해당 지도를 재설정하여 삭제하세요.",
     "drift_removed_title": "더 이상 보고되지 않는 방 ({count})",
@@ -2268,7 +2268,9 @@
       "has_access_graph": "하나 이상의 방이 접근 그래프에 포함되어 있습니다."
     },
     "subtab_steps": "설정 단계",
-    "subtab_system": "시스템"
+    "subtab_system": "시스템",
+    "adopt_room": "방 추가",
+    "adopt_needs_active_map": "추가하려면 청소기를 이 지도로 전환하세요"
   },
   "external_jobs": {
     "back": "뒤로",
@@ -2450,7 +2452,8 @@
     "panel_renamed": "패널 이름이 변경되었습니다 — 새로고침하여 사이드바를 업데이트하세요",
     "failed_reconcile_dismiss": "조정 무시 실패: {error}",
     "failed_reconcile_update": "저장된 방 업데이트 실패: {error}",
-    "reconciliation_dismissed": "무시됨 — 지도가 다시 변경되면 동일한 검토가 다시 나타날 수 있습니다"
+    "reconciliation_dismissed": "무시됨 — 지도가 다시 변경되면 동일한 검토가 다시 나타날 수 있습니다",
+    "failed_adopt_room": "방을 추가하지 못했습니다: {error}"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "확인 실패: {detail}",

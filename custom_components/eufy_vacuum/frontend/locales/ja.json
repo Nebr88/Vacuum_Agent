@@ -2204,7 +2204,7 @@
     "delete_warning": "<strong>{name}</strong> を削除しますか？このマップのすべての部屋、履歴、学習データが統合から削除されます。上流のクラウドマップには影響しません。",
     "deleting": "削除中…",
     "description": "以下のステップはロボット掃除機のアダプターによって宣言されています。各ステップは順番に完了する必要があります。セットアップ後に発見された新しい部屋は、部屋ライブラリに追加される前に、ここでレビュー用に表示されます。",
-    "drift_new_hint": "ロボット掃除機がまだ設定していない部屋を報告しています。対応するマップを設定して含めるか、ゴースト部屋として拒否してください。",
+    "drift_new_hint": "掃除機がまだ設定していない部屋を報告しています（掃除機のアプリで部屋を分割した後など）。実在する部屋は追加すると設定が保持され、清掃プロファイルが割り当てられます。実在しない場合はファントムとして拒否してください。",
     "drift_new_title": "新しい部屋を発見（{count}）",
     "drift_removed_hint": "これらの部屋は、削除が確定するのに十分な期間、検出から欠落しています。対応するマップを再設定して削除してください。",
     "drift_removed_title": "報告されなくなった部屋（{count}）",
@@ -2268,7 +2268,9 @@
       "has_access_graph": "1つ以上の部屋がアクセスグラフに含まれています。"
     },
     "subtab_steps": "セットアップ手順",
-    "subtab_system": "システム"
+    "subtab_system": "システム",
+    "adopt_room": "部屋を追加",
+    "adopt_needs_active_map": "追加するには掃除機をこのマップに切り替えてください"
   },
   "external_jobs": {
     "back": "戻る",
@@ -2450,7 +2452,8 @@
     "panel_renamed": "パネル名を変更しました — サイドバーを更新するにはページを更新してください",
     "failed_reconcile_dismiss": "照合の却下に失敗しました: {error}",
     "failed_reconcile_update": "保存済みの部屋の更新に失敗しました: {error}",
-    "reconciliation_dismissed": "却下しました — マップが再び変更されると同じ確認が再表示されることがあります"
+    "reconciliation_dismissed": "却下しました — マップが再び変更されると同じ確認が再表示されることがあります",
+    "failed_adopt_room": "部屋を追加できませんでした: {error}"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "確認に失敗しました: {detail}",

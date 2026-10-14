@@ -83,6 +83,37 @@ rooms in either direction (C58, ruled 2026-08-24).
 
 ---
 
+## 3b. A discovered room had one button, and it called the room a phantom
+
+ISSUE #70. The drift panel lists `new_rooms` and offered exactly one action — *Reject as
+phantom*. Its hint read *"Configure the matching map to include them"*, and that panel is
+rendered **inside** the `save_rooms` step, whose editor is populated by
+`setup_get_map_rooms` → `get_managed_rooms` → `map_bucket["rooms"]`. That is the MANAGED
+set, so a never-managed room cannot appear there however fresh discovery is. The hint
+named the one step structurally unable to carry it out.
+
+The path that works is re-running **Import Active Map**:
+`import_active_map` calls `save_managed_rooms(enabled_room_ids=None)` — include every
+discovered room — and `build_managed_rooms` preserves existing per-room settings for
+rooms still discovered. So adoption was always available, and nothing said so.
+
+**Add room is that call with a button on it**, deliberately not a new write path. A
+bespoke adopt-one-room write would be a second route into the same store, free to diverge
+from the first the moment either changed. `[SAB-2]` asserts the button reaches neither
+save nor reject.
+
+**Offered only on the active map.** `import_active_map` takes no map id — *"only the map
+that is currently active on the device can be imported … a hard limitation of the upstream
+cloud API"*. A row for any other map says so instead of showing a button that would no-op,
+and an UNKNOWN active map is treated as not-matching rather than assumed (`[SA-2b]`): a
+permissive default puts the dead button back on every row.
+
+`setup/status.py` emits `active_map_id` for this, resolved by the same call the drift
+computation uses, so the id a row is compared against cannot disagree with the id the
+drift was computed for.
+
+---
+
 ## 4. A rejection belongs to one map, because ids do
 
 `setup/drift.py::reject_rooms` hides a phantom room id the vacuum reports but which does not exist.
