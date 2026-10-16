@@ -13,6 +13,14 @@
 //   [SA-1] a new room on the ACTIVE map offers Add room
 //   [SA-2] a new room on any OTHER map explains why instead of offering a dead button
 //   [SA-3] Reject survives in both — Add is an addition, not a replacement
+//
+// ⚠ THE FIXTURE BELOW IS A CONTRACT, NOT A CONVENIENCE. These tests pass a drift row
+// carrying a real `map_id`, and the first version of this file INVENTED that: the
+// backend's `_enrich` fell back to `map_id: ""` for any room not in managed storage —
+// which is every room `new_rooms` ever contains. So the button never rendered for the
+// case it exists for, and this suite could not see it, because the fixture encoded the
+// assumption instead of testing it. `[DR-NEW-1]` in tests/integration/test_setup_drift.py
+// is what now holds up this shape; change one and the other is wrong.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";

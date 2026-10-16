@@ -832,12 +832,47 @@ def compute_room_drift(
             and rid not in confirmed_removed_ids
         }
 
+    # ISSUE #70, third layer. `lookup` walks MANAGED storage, so a genuinely new room —
+    # the only kind `new_rooms` ever contains — misses it, and the old fallback invented
+    # both missing fields: `map_id: ""` and `name: f"Room {rid}"`.
+    #
+    # Both were user-visible. The card offers Add room only when the row's map matches
+    # the active map, and `"" == "B"` is never true, so the button shipped in 7be07417
+    # could not render for the case it exists for. And the vacuum HAD reported a name —
+    # "Study" became "Room 3", so the row could not be recognised by the person who had
+    # just created it in their app.
+    #
+    # Neither fact needed inventing. The map is the one this snapshot was SCOPED to, and
+    # the name is in the discovery cache the same pass wrote. Falling back to the
+    # literals only when discovery is silent too keeps the old behaviour for the
+    # whole-vacuum read (`map_id=None`), which legitimately has no single map.
+    _disc_rooms = (
+        (manager.data.get("discovery", {}) or {})
+        .get(vacuum_entity_id, {})
+        .get(str(map_id), {})
+        .get("rooms", [])
+        if map_id is not None else []
+    )
+    _disc_by_id: dict[int, dict[str, Any]] = {}
+    for _r in _disc_rooms if isinstance(_disc_rooms, list) else []:
+        try:
+            _disc_by_id[int(_r.get("room_id"))] = _r
+        except (TypeError, ValueError):   # a provider-shaped id we cannot key on
+            continue
+
     def _enrich(ids: set[int]) -> list[dict[str, Any]]:
-        return sorted(
-            (lookup.get(rid) or {"room_id": rid, "name": f"Room {rid}", "map_id": ""}
-             for rid in ids),
-            key=lambda r: r.get("room_id", 0),
-        )
+        def _one(rid: int) -> dict[str, Any]:
+            found = lookup.get(rid)
+            if found:
+                return found
+            disc = _disc_by_id.get(rid) or {}
+            return {
+                "room_id": rid,
+                "name": str(disc.get("name") or f"Room {rid}"),
+                "map_id": str(disc.get("map_id") or (map_id if map_id is not None else "")),
+            }
+
+        return sorted((_one(rid) for rid in ids), key=lambda r: r.get("room_id", 0))
 
     in_sync = (
         not new_confirmed_ids

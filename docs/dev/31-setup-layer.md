@@ -119,6 +119,23 @@ Two things had to change, and the second is the one that is easy to miss:
    invisibly: no entities, still listed as newly discovered. `adopted_room_ids` is the third
    shape, and pressing Add room is the review the other two withhold.
 
+**And the button still did not render, which the second audit pass caught.** The drift
+row's `map_id` is enriched from `_room_lookup`, which walks MANAGED storage — so a
+genuinely new room, the only kind `new_rooms` ever holds, missed it and took the fallback
+`{"room_id": rid, "name": f"Room {rid}", "map_id": ""}`. The card offers Add room only
+when the row's map matches the active map, and `"" == "B"` is never true. The name was
+discarded the same way: the vacuum reported "Study" and the row said "Room 3".
+
+Neither fact needed inventing — the map is the one the snapshot was scoped to, and the
+name is in the discovery cache the same pass wrote. `[DR-NEW-1]` pins both.
+
+**The renderer suite could not see it**, and that is the lesson worth keeping.
+`setup-adopt-room.test.mjs` handed the renderer a row with a real `map_id` — a shape the
+backend only produces for a room ALREADY in storage. The fixture encoded the assumption
+instead of testing it, so a green renderer suite and a green backend suite sat either side
+of a button that never appeared. The fixture now carries a comment naming `[DR-NEW-1]` as
+what holds it up.
+
 **The existing suite caught a regression in the fix**, which is the argument for moving
 discovery carefully: the relocated gate put "no rooms detected" in front of an
 already-imported map for the first time, so a sleeping vacuum turned a settled map into

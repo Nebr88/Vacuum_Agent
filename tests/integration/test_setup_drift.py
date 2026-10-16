@@ -566,3 +566,56 @@ def test_dr_scope_4_a_pass_against_one_map_does_not_erase_the_others_history(man
     assert history["1"]["missing_passes"] == 1, (
         "map A's strike count must survive a pass against another map"
     )
+
+
+def test_dr_new_1_a_never_stored_room_carries_its_map_and_its_real_name(manager):
+    """[DR-NEW-1] ISSUE #70, third layer — the drift row the Add room button reads.
+
+    `_room_lookup` walks managed storage only, so a genuinely NEW room — the only kind
+    the button exists for — misses it and `_enrich` falls back to
+    `{"room_id": rid, "name": f"Room {rid}", "map_id": ""}`.
+
+    Both halves of that fallback are wrong for a new room, and both are user-visible:
+
+    * `map_id: ""` never equals the active map id, so the card renders "Switch the
+      vacuum to this map to add it" instead of Add room — on the active map. The button
+      shipped in 7be07417 could never appear for the case it was written for.
+    * `name: "Room 3"` discards the name the vacuum reported ("Study"), so the row
+      cannot be recognised by the person who just created it.
+
+    THE PREVIOUS TEST COULD NOT SEE THIS. src/renderers/setup-adopt-room.test.mjs hands
+    the renderer `{room_id: 7, map_id: "1"}` — a shape the backend only produces for a
+    room ALREADY in storage. The fixture encoded the assumption instead of testing it,
+    which is why it passed against a button that never rendered. This one goes through
+    `compute_room_drift`.
+
+    ABLATION: restore the `"map_id": ""` fallback and this goes red on the map; restore
+    `f"Room {rid}"` and it goes red on the name.
+    """
+    seed_discovery(manager, _VAC, "B", [
+        {"room_id": 7, "map_id": "B", "name": "Kitchen"},
+        {"room_id": 8, "map_id": "B", "name": "Bath"},
+    ])
+    manager.save_managed_rooms(vacuum_entity_id=_VAC, map_id="B")
+    for room in manager.data["maps"][_VAC]["B"]["rooms"].values():
+        room["is_configured"] = True
+
+    # The vacuum now reports a third room. It is in discovery and NOT in storage —
+    # which is the only state a "new room" is ever in.
+    seed_discovery(manager, _VAC, "B", [
+        {"room_id": 7, "map_id": "B", "name": "Kitchen"},
+        {"room_id": 8, "map_id": "B", "name": "Bath"},
+        {"room_id": 3, "map_id": "B", "name": "Study"},
+    ])
+
+    drift = compute_room_drift(manager, _VAC, discovered_room_ids={3, 7, 8}, map_id="B")
+
+    new = {r["room_id"]: r for r in drift["new_rooms"]}
+    assert 3 in new, f"the new room was not offered at all: {drift['new_rooms']}"
+    assert new[3]["map_id"] == "B", (
+        "a new room's row carried no map, so the card could never match it against the "
+        "active map and the Add room button never rendered"
+    )
+    assert new[3]["name"] == "Study", (
+        "the vacuum reported a name; the row showed 'Room 3' and threw it away"
+    )
