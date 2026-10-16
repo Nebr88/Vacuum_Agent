@@ -49,12 +49,27 @@ def build_managed_rooms(
     enabled_room_ids: list[int] | list[str] | None = None,
     floor_types: dict[int, str] | None = None,
     rejected_rooms: set[int] | list[int] | None = None,
+    adopted_room_ids: set[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Build a managed room dict keyed by room_id string from discovered rooms.
 
     Only rooms in ``enabled_room_ids`` are included when that list is supplied.
     Existing per-room settings are preserved for rooms that are still discovered;
     new rooms take their settings from ``new_room_defaults``.
+
+    ``adopted_room_ids`` is the THIRD shape, added for ISSUE #70, and it is the only
+    way a NEW room can arrive both ``enabled`` and ``is_configured``. The other two
+    shapes cannot express it, deliberately: a first import approves everything once,
+    and a re-sync approves nothing new (R14/C60) — which is why a new room otherwise
+    lands ``enabled=False, is_configured=False`` and sits in the drift list awaiting
+    review. Adoption is that review, performed by the user pressing **Add room**, so
+    the caller states it here rather than the builder inferring it.
+
+    It is narrow on purpose. Membership forces the two flags TRUE and nothing else;
+    it cannot disable or unconfigure a room, it does not bypass ``rejected_rooms``
+    (a rejected id never reaches this loop), and an id that is not currently
+    discovered is simply absent. Default ``None`` leaves every existing call byte-
+    identical.
 
     ``new_room_defaults`` is REQUIRED and has deliberately no default value. It comes from
     ``rooms.room_defaults.resolve_new_room_defaults_for_vacuum`` — the brand's own default
@@ -235,7 +250,12 @@ def build_managed_rooms(
         # decided here.
         from ..learning.utils import _iso_now
         existing_configured_at = existing.get("configured_at")
-        if has_explicit_enabled_ids:
+        _adopted = str(room_id) in (adopted_room_ids or set())
+        if _adopted:
+            # ISSUE #70: the user pressed Add room. That IS the review the two
+            # branches below withhold, so it is stated, not inferred.
+            is_configured = True
+        elif has_explicit_enabled_ids:
             is_configured = bool(existing.get("is_configured", False)) or floor_type_entry is not None
         else:
             is_configured = is_first_import or not is_new_room
@@ -255,7 +275,9 @@ def build_managed_rooms(
             map_id=str(room["map_id"]),
             name=str(room["name"]),
             slug=room.get("slug"),
-            enabled=bool(existing.get("enabled", is_first_import if is_new_room else True)),
+            # `_adopted` first: a NEW room has no `existing`, so the default below
+            # resolves to False for it and no argument could otherwise raise it.
+            enabled=_adopted or bool(existing.get("enabled", is_first_import if is_new_room else True)),
             order=int(existing.get("order", index)),
             profile_name=str(_default("profile_name", DEFAULT_ROOM_PROFILE_NAME)),
             floor_type=floor_type,

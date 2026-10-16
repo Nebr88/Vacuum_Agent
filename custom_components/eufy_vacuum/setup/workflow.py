@@ -301,25 +301,43 @@ async def import_active_map(
 
     existing_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
     existing_rooms = existing_maps.get(str(map_id), {}).get("rooms", {})
-    if existing_rooms:
-        room_count = len(existing_rooms)
-        return _result(
-            "already_done",
-            f"Map '{map_id}' is already imported ({room_count} rooms).",
-            data={
-                "vacuum_entity_id": vacuum_entity_id,
-                "map_id": map_id,
-                "room_count": room_count,
-            },
-            next_actions=["configure_rooms"],
-        )
 
+    # ISSUE #70 — THIS GATE MADE "ADD ROOM" A NO-OP, and the bug was its POSITION.
+    #
+    # It used to return `already_done` for ANY map holding rooms, thirty lines above the
+    # only `save_managed_rooms` call below. A map reports a NEWLY DISCOVERED room only
+    # when it already holds configured rooms, by construction (`compute_room_drift`
+    # subtracts the configured set), so in the one scenario adoption exists for, this
+    # always fired. Pressing Add room produced "already imported (N rooms)" and the row
+    # stayed. Confirmed on a live install.
+    #
+    # Discovery therefore has to run FIRST, so the question can be "is there anything
+    # here I do not already manage" rather than "does this map have rooms".
     rooms = discover_rooms_for_vacuum(
         hass,
         vacuum_entity_id=vacuum_entity_id,
         map_id=map_id,
     )
     if not rooms:
+        # ISSUE #70 follow-up, and the existing suite is what caught it. Moving discovery
+        # above the gate put this refusal in front of an ALREADY-IMPORTED map for the
+        # first time: a vacuum that is asleep, mid-restart or simply not reporting
+        # segments right now would turn a settled map's "already imported" into "no rooms
+        # detected — complete a mapping run", which is both alarming and false.
+        #
+        # An imported map answers from what it HOLDS when the device is saying nothing.
+        # Only a map with nothing stored is genuinely blocked.
+        if existing_rooms:
+            return _result(
+                "already_done",
+                f"Map '{map_id}' is already imported ({len(existing_rooms)} rooms).",
+                data={
+                    "vacuum_entity_id": vacuum_entity_id,
+                    "map_id": map_id,
+                    "room_count": len(existing_rooms),
+                },
+                next_actions=["configure_rooms"],
+            )
         return _result(
             "blocked",
             (
@@ -339,13 +357,52 @@ async def import_active_map(
         "rooms": rooms,
     }
 
+    # ISSUE #70 — the relocated gate. `already_done` still means what it said: this map
+    # is imported and the vacuum is reporting nothing we do not already hold.
+    #
+    # Rejected ids are subtracted, or a phantom the user dismissed would reopen the map
+    # for adoption on every press and re-adopt the thing they rejected.
+    from ..setup.drift import rejected_room_ids_for   # local: import cycle
+
+    _managed_ids = {str(rid) for rid in existing_rooms}
+    _rejected_ids = {
+        str(rid) for rid in rejected_room_ids_for(
+            manager, vacuum_entity_id, map_id=str(map_id), include_unscoped=False,
+        )
+    }
+    _adopt_ids = {
+        str(r["room_id"]) for r in rooms
+        if str(r["room_id"]) not in _managed_ids
+        and str(r["room_id"]) not in _rejected_ids
+    }
+
+    if existing_rooms and not _adopt_ids:
+        room_count = len(existing_rooms)
+        return _result(
+            "already_done",
+            f"Map '{map_id}' is already imported ({room_count} rooms).",
+            data={
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": map_id,
+                "room_count": room_count,
+            },
+            next_actions=["configure_rooms"],
+        )
+
     # Import every discovered room with hardwood defaults; the user sets per-room
     # floor type via the panel's room editor after import.
+    #
+    # `adopted_room_ids` carries the ids this call is approving. On a FIRST import it is
+    # every room and the flag is redundant (is_first_import already approves them); on an
+    # adoption it is the only way a new room arrives enabled AND configured, because a
+    # re-sync approves nothing new by design (R14/C60) and would otherwise store the room
+    # invisibly — no entities, and still listed as newly discovered.
     manager.save_managed_rooms(
         vacuum_entity_id=vacuum_entity_id,
         map_id=map_id,
         enabled_room_ids=None,
         floor_types={},
+        adopted_room_ids=_adopt_ids or None,
     )
 
     await manager.async_save()

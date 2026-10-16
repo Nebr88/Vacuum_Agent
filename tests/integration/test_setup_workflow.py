@@ -566,3 +566,123 @@ async def test_sw9e_active_map_present_but_valueless_gets_its_own_message(
         "a map CAMERA is the obvious-looking wrong answer here (its state is a "
         "timestamp); the message should say not to"
     )
+
+
+async def test_sw10_a_newly_discovered_room_is_adopted_not_already_done(hass, manager, _no_panel):
+    """[SW-10] ISSUE #70 — the gate that made "Add room" a no-op.
+
+    `import_active_map` returned `already_done` for ANY map that held rooms, thirty lines
+    above its only `save_managed_rooms` call. A drift row exists only when the map HAS
+    configured rooms, by construction, so in the one scenario adoption is for, the gate
+    always fired. The button called import, import said "already imported (N rooms)", and
+    the row stayed. Confirmed on a live install before this test was written.
+
+    LIFTING THE GATE IS NOT ENOUGH, and that is the part worth pinning. On a re-sync
+    `build_managed_rooms` deliberately lands a new room `is_configured=False`,
+    `enabled=False` — that is the REVIEW mechanism, and `is_configured` is the
+    entity-creation gate that `compute_room_drift` also subtracts. So a plain re-import
+    would have adopted the room into storage and changed nothing a user can see: no
+    entities, and the row still sitting in "new rooms discovered".
+
+    Pressing Add room IS the review. Adoption therefore has to be explicit — enabled and
+    configured — which is what this asserts.
+
+    ABLATION: restore the unconditional `if existing_rooms: return already_done` and this
+    goes red on the status; keep the gate fix but drop the explicit enable/configure and
+    it goes red on `enabled` / `is_configured`.
+    """
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {"segments": [
+        {"id": 1, "name": "Kitchen"},
+        {"id": 2, "name": "Bath"},
+    ]})
+    await add_vacuum(hass, _VAC)
+    hass.states.async_set("sensor.alfred_active_map", "sw10map")
+    first = await import_active_map(hass, _VAC)
+    assert first["status"] == "success", first
+    rooms = manager.data["maps"][_VAC]["sw10map"]["rooms"]
+    assert set(rooms) == {"1", "2"}, rooms
+    # Give room 1 a setting, so the adoption can be shown not to disturb it.
+    rooms["1"]["floor_type"] = "carpet"
+    rooms["1"]["clean_passes"] = 3
+
+    # The vacuum now reports a THIRD room — the split, as #70 described it.
+    hass.states.async_set(_VAC, "docked", {"segments": [
+        {"id": 1, "name": "Kitchen"},
+        {"id": 2, "name": "Bath"},
+        {"id": 3, "name": "Study"},
+    ]})
+
+    result = await import_active_map(hass, _VAC)
+
+    assert result["status"] != "already_done", (
+        "the map holds rooms, so the old gate refused — which is exactly the case "
+        "Add room exists for"
+    )
+    rooms = manager.data["maps"][_VAC]["sw10map"]["rooms"]
+    assert "3" in rooms, "the newly discovered room was never adopted"
+    assert rooms["3"]["enabled"] is True, (
+        "adopted but disabled is invisible to the user: no entities are created"
+    )
+    assert rooms["3"]["is_configured"] is True, (
+        "is_configured is the entity-creation gate AND what drift subtracts — left "
+        "False, the room stays in 'new rooms discovered' after being added"
+    )
+    # The settings on the rooms that were already there survive untouched.
+    assert rooms["1"]["floor_type"] == "carpet"
+    assert rooms["1"]["clean_passes"] == 3
+
+
+async def test_sw10b_nothing_new_still_reports_already_done(hass, manager, _no_panel):
+    """[SW-10b] The gate must still refuse when there is genuinely nothing to adopt.
+
+    Lifting it unconditionally would make every Import Active Map press re-save the whole
+    map, which is the behaviour `already_done` exists to prevent.
+
+    ABLATION: remove the "are there new rooms" condition and this goes red.
+    """
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 1, "name": "Kitchen"}]})
+    await add_vacuum(hass, _VAC)
+    hass.states.async_set("sensor.alfred_active_map", "sw10bmap")
+    assert (await import_active_map(hass, _VAC))["status"] == "success"
+
+    again = await import_active_map(hass, _VAC)
+
+    assert again["status"] == "already_done", again
+    assert again["data"]["room_count"] == 1
+
+
+async def test_sw10c_an_imported_map_answers_from_storage_when_discovery_is_silent(
+    hass, manager, _no_panel
+):
+    """[SW-10c] The regression the EXISTING suite caught when the gate moved.
+
+    Putting discovery above the gate put the "no rooms detected" refusal in front of an
+    already-imported map for the first time. A vacuum that is asleep, mid-restart or
+    simply not reporting segments would turn a settled map's "already imported" into
+    "No rooms detected — complete a mapping run", which is alarming and false.
+
+    An imported map answers from what it HOLDS when the device says nothing. Only a map
+    with nothing stored is genuinely blocked — which [WFD-4] still pins.
+
+    ABLATION: drop the `if existing_rooms` arm from the empty-discovery branch and this
+    goes red with status `blocked`, together with [SW-8] and [WFD-3].
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    setup_map(manager, _VAC, "sw10cmap", count=2)
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": "sensor.alfred_active_map"},
+    })
+    # No discovery block and no segments attribute: the device reports nothing at all.
+    hass.states.async_set(_VAC, "docked", {})
+    hass.states.async_set("sensor.alfred_active_map", "sw10cmap")
+    await hass.async_block_till_done()
+
+    result = await import_active_map(hass, _VAC)
+
+    assert result["status"] == "already_done", result
+    assert result["data"]["room_count"] == 2
+    assert manager.data["maps"][_VAC]["sw10cmap"]["rooms"], "storage must be untouched"

@@ -493,8 +493,15 @@ class RoomMapManager:
         map_id: str,
         enabled_room_ids: list[int] | list[str] | None = None,
         floor_types: dict[int, str] | None = None,
+        adopted_room_ids: set[str] | None = None,
     ) -> dict[str, Any]:
-        """Convert discovered rooms into managed room configuration and save it."""
+        """Convert discovered rooms into managed room configuration and save it.
+
+        ``adopted_room_ids`` (ISSUE #70) marks ids the user has explicitly approved this
+        call, so a NEW room arrives enabled and configured rather than waiting in the
+        drift list for a review that has already happened. Passed through untouched; the
+        rules live in ``build_managed_rooms``.
+        """
         self._manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
 
         discovery = (
@@ -542,6 +549,7 @@ class RoomMapManager:
             existing_rooms=existing_rooms,
             enabled_room_ids=enabled_room_ids,
             floor_types=floor_types or {},
+            adopted_room_ids=adopted_room_ids,
             # include_unscoped=False: only rejections that KNOW their map reach a
             # write boundary. The legacy flat list still suppresses new_rooms (safe,
             # reversible), but must never refuse a creation here — a live install

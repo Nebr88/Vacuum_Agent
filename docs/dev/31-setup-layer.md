@@ -97,7 +97,33 @@ The path that works is re-running **Import Active Map**:
 discovered room — and `build_managed_rooms` preserves existing per-room settings for
 rooms still discovered. So adoption was always available, and nothing said so.
 
-**Add room is that call with a button on it**, deliberately not a new write path. A
+**Add room is that call with a button on it**, deliberately not a new write path — but
+the call did not work, and the pre-release audit is what caught it.
+
+`import_active_map` returned `already_done` for ANY map holding rooms, **thirty lines above
+its only `save_managed_rooms` call**. A map reports a newly discovered room only when it
+already holds configured rooms, so in the one scenario adoption exists for, the gate always
+fired. The button was verified end to end at the wrong layer: the JS tests asserted the
+import action was CALLED, never that a room arrived. Reachability, not correctness — the
+save it reached for was right and unreachable.
+
+Two things had to change, and the second is the one that is easy to miss:
+
+1. **Discovery runs before the gate**, so the question is "is there anything here I do not
+   already manage" rather than "does this map have rooms". Rejected ids are subtracted, or a
+   dismissed phantom would reopen the map on every press.
+2. **Adoption has to be stated.** Lifting the gate alone stores the room
+   `is_configured=False, enabled=False` — `build_managed_rooms` does that on purpose, because
+   a re-sync approves nothing new (R14/C60). `is_configured` is the entity-creation gate AND
+   what `compute_room_drift` subtracts, so a "fixed" import would have adopted the room
+   invisibly: no entities, still listed as newly discovered. `adopted_room_ids` is the third
+   shape, and pressing Add room is the review the other two withhold.
+
+**The existing suite caught a regression in the fix**, which is the argument for moving
+discovery carefully: the relocated gate put "no rooms detected" in front of an
+already-imported map for the first time, so a sleeping vacuum turned a settled map into
+"complete a mapping run". An imported map answers from what it holds when the device says
+nothing (`[SW-10c]`); only an empty one is blocked. A
 bespoke adopt-one-room write would be a second route into the same store, free to diverge
 from the first the moment either changed. `[SAB-2]` asserts the button reaches neither
 save nor reject.
