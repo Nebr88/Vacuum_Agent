@@ -8,6 +8,54 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.3.0] - 2026-10-16
+
+Four reports in one week, from four people, and three of them found something underneath what they reported. Thanks to **@abyssc0der** ([#67](https://github.com/kingchddg901/Vacuum_Agent/issues/67)) for coming back when the first fix did not work, **@SilentConfig** ([#68](https://github.com/kingchddg901/Vacuum_Agent/issues/68)), **@kwolfgang** ([#69](https://github.com/kingchddg901/Vacuum_Agent/issues/69)) and **@fhteagle** ([#70](https://github.com/kingchddg901/Vacuum_Agent/issues/70)).
+
+> **This release changes both the integration and the card**, so it needs a full Home Assistant restart, followed by a hard refresh of the dashboard (Ctrl+Shift+R).
+
+### Added
+
+- **A newly discovered room can now be added.** Split a room in your vacuum's own app and Vacuum Agent notices it, but until now the only button beside it said "Reject as phantom" — and the hint pointed at the Configure rooms step, which lists rooms you have *already* configured and so could never show a brand-new one. The instruction sent you to the one place that could not carry it out.
+
+  There is now an **Add room** button next to Reject. It takes the room into management with default settings, which you then adjust in Configure rooms like any other. Everything already configured keeps its settings — nothing is reset.
+
+  On a vacuum with more than one map, this only works for the map the robot is **currently on**; there is no way to import any other, because the vacuum's own cloud only exposes the active one. A room discovered on a different map now says so instead of offering a button that would quietly do nothing.
+
+  **Import Active Map now adopts new rooms too**, which is the same change seen from the other side. It used to answer "already imported" for any map that held rooms and stop there, so there was no way to do it from the panel at all. (A hand-written `save_managed_rooms` call could do it, if you knew to list every existing room id plus the new one and give the new one a floor type. That is not a route anyone should have to find.) If your vacuum is simply not reporting its rooms at that moment, an already-imported map still answers from what it holds rather than claiming no rooms were detected.
+
+### Fixed
+
+- **A Roborock with no mop still could not clean, for some owners.** v2.2.5 fixed this for vacuums whose integration publishes nothing mop-related. It did not fix it for vacuums that publish a mop control which is switched off, or — as it turns out — for most current installs at all.
+
+  The reason is worth stating plainly, because it changes what the fix had to be: the mop-intensity control is created for **every** Roborock of this generation, whether or not the machine has a mop. Its presence was never evidence of anything, so the old check could not work reliably and was going to stop working entirely as people updated.
+
+  Vacuum Agent now asks the vacuum whether it reports a mop module at all, which is a real answer from the hardware. A mopless Roborock cleans.
+
+- **A Roborock with no mop no longer offers mop controls it could never honour.** The same reading that lets it clean is also what decides whether to offer mopping at all, so on a Roborock that is not in the model catalogue and reports no mop module you will no longer see the **Room Profiles** section, the per-room **water level** picker, or the two mop cleaning profiles — leaving two rather than four. None of them could ever reach that hardware.
+
+  If you automate against `sensor.<your vacuum>_available_profiles`, its `profile_count` attribute changes from 4 to 2 on those vacuums, and `supports_mop_features` / `supports_water_control` both read false.
+
+  The reverse is worth knowing too: if your Roborock *does* mop but its integration never creates the water-tank sensor, Vacuum Agent will now treat it as mopless and hide the same controls. If that describes yours, please open an issue — it is a model we have not seen, and the fix is to record it rather than for you to work around it.
+
+- **A mop-capable Roborock whose water control is missing now refuses to start, instead of cleaning anyway.** This is the opposite case and it is deliberate. Before a mixed batch, Vacuum Agent lowers the water so vacuum-only rooms are not wet-mopped. If your vacuum *can* mop but its water control has gone — disabled, or not created — that setting cannot be applied, and continuing would mop dry floors with whatever the vendor app last set. Refusing is the safe answer, and it was previously skipped silently.
+
+  If this happens to you the message now says which entity is involved and, when you have simply switched it off, says so and how to re-enable it.
+
+- **"No map could be identified" on a vacuum that has a perfectly good map.** Reported on a Eufy Omni C20. The importer told owners to complete a mapping run with rooms set up in the app — which they had — and to check for a map-selector entity they already had. Neither sentence was about them.
+
+  The real cause is that the vacuum's integration never delivers the map's identity to Home Assistant, which Vacuum Agent could already see and said correctly in its own diagnostics while telling you something else at the point it mattered. The message now describes what is actually happening, and steers you away from pointing the map role at a camera — a camera's state is a timestamp, not a map.
+
+- **A deprecation warning in the Home Assistant log.** Home Assistant 2026.8 changed how an integration asks which configuration a device belongs to, and Vacuum Agent was still asking the old way in two places. Harmless — Home Assistant keeps the old way working for custom integrations until 2027.10 — but it is gone now, and in a form that still works on every Home Assistant back to the 2025.6 minimum.
+
+### Internal
+
+- Diagnostics now record **how** the dock was identified, not only what was decided. A live reading from the device and a fallback to the model table could produce identical output for opposite reasons, and telling them apart previously meant reading the model table by hand.
+
+- Deleting a map left one bucket of its data behind — a built dispatch payload, written alongside one that was being cleared correctly. Nothing read it, but a future map reaching the same number would have inherited it. Already-stranded leftovers are not swept; nothing reads them either.
+
+- The README claimed that Eufy's mapping models work "when eufy-clean talks to them over MQTT". For the Omni C20 that is necessary and not sufficient — it is on that transport and still receives no map data — so an owner who checked was sent to look at their connection for nothing.
+
 ## [2.2.5] - 2026-10-09
 
 A small release, but the first item stops a whole class of Roborock being unable to clean at all. Thanks to **@abyssc0der** for [#67](https://github.com/kingchddg901/Vacuum_Agent/issues/67), whose report named the cause precisely enough that no diagnostics were needed, and to **@150d**, whose history export on [#62](https://github.com/kingchddg901/Vacuum_Agent/issues/62) is what made dock activity recordable on Roborock at all.
