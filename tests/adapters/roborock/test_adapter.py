@@ -824,11 +824,18 @@ def test_rt_1_the_route_options_are_the_devices_own_vocabulary():
 
 
 def test_rt_2_no_route_axis_without_the_select(s6_config):
-    """[RT-2] THE NO-REGRESSION GUARD. The S6 has no mop-route select, so nothing appears.
+    """[RT-2] THE NO-REGRESSION GUARD: catalogue False and NO select state at all.
 
     model_catalog says `has_path_control: False` for the S6 and the comment records it as
-    owner-confirmed on hardware. Entity presence may only ADD, so a box without the select
-    must be byte-identical to before: capability off, and no route pre-call to dispatch.
+    owner-confirmed on hardware. A usable select may only ADD, so a box with no select
+    state must be byte-identical to before: capability off, and no route pre-call.
+
+    ⚠ THE SHAPE HERE IS NOT THE REAL S6'S, AND THIS DOCSTRING CLAIMED IT WAS — it said
+    "the S6 has no mop-route select". It has one: registered by the roborock platform,
+    not disabled, permanently `unavailable` (measured on the live box 2026-10-18). This
+    fixture sets no select state, so it exercises the `_route_state is None` arm. The
+    real S6's arm — present, unavailable — is [RT-5], which does patch the s6 model and
+    does publish the entity. Both arms are needed; only RT-5 is named for the hardware.
     """
     assert s6_config["capabilities"]["supports_path_control"] is False
     assert _route_pre_call(s6_config) is None

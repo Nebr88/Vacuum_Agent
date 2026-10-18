@@ -431,9 +431,13 @@ def register_roborock_adapter_for_vacuum(
     # rendered. Reported on an S7: "Vacuum Agent does not show any setting for the mop
     # route or mop mode."
     #
-    # Publishing the select IS the capability, so presence decides and the catalogue can
-    # only ADD to it. The S6 cannot regress: it has no such select, so the OR contributes
-    # nothing there. Computed ONCE because it feeds both the runtime hint and the config
+    # A USABLE select IS the capability, so the device decides and the catalogue can only
+    # ADD to it. The S6 cannot regress — but NOT for the reason this comment gave until
+    # 2026-10-18, which was "it has no such select". It HAS one. `select.ivy_mop_mode` is
+    # registered by the roborock platform, is not disabled, and sits at `unavailable`
+    # forever; measured on the live box. What makes the S6 safe is the usability test
+    # below, not an absence — and the superseded sentence survived directly above the
+    # paragraph that documents the very fix that replaced it. Computed ONCE because it feeds both the runtime hint and the config
     # capabilities block the card reads — declaring it in one and not the other is exactly
     # how supports_zone_clean ended up open at one end and unconnected at the other (D18).
     # PRESENCE IS NOT EVIDENCE -- the entity must carry a USABLE VALUE.
@@ -479,9 +483,10 @@ def register_roborock_adapter_for_vacuum(
     # over-watering a dry room is damage; scrubbing a room deeper than asked only costs
     # time, so the asymmetry that justifies the abort path there does not exist here.
     #
-    # Gated on _route_axis (the select being present), not on mop_settable: the route is a
-    # capability of the dock/mop hardware the device reports for itself, and the S6 — whose
-    # mop is observe-only — has no such select, so this stays empty there.
+    # Gated on _route_axis (the select carrying a USABLE value), not on mop_settable: the
+    # route is a capability of the dock/mop hardware the device reports for itself. The S6
+    # publishes the select but it never leaves `unavailable` — its mop is observe-only —
+    # so _route_axis is False and this stays empty there.
     # ISSUE #71 — DO NOT PUSH A SETTING THE USER CANNOT SEE OR CHANGE.
     #
     # #66 made this axis live: `_route_axis` is true whenever the device publishes the

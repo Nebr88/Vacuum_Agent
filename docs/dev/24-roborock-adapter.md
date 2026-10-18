@@ -566,9 +566,20 @@ canonical, which is why it now reads as Roborock's — and the giveaway is that 
 > all twelve of `vacuum.ivy`'s rooms still carried `wide` with `room_vocabulary_v1: True` beside
 > them. Replacing an option list is not enough — it needs its own key. `room_path_type_residue_v1`
 > (`rooms/vocabulary_migration.py::migrate_path_type_residue`, 2026-10-18) is that key, scoped to
-> this one axis and to RESETS only, so it cannot re-adjudicate anything else on the way past. `supports_path_control` is now the catalogue value OR live presence
-> of the select, so the device decides and the catalogue can only add; the S6 has no such select
-> and is unchanged. Covered by [RT-1]..[RT-4].
+> this one axis and to RESETS only, so it cannot re-adjudicate anything else on the way past. `supports_path_control` is now the catalogue value OR a
+> live **usable value** from the select, so the device decides and the catalogue can only add.
+> Covered by [RT-1]..[RT-7].
+>
+> ⚠ **This said "live presence of the select … the S6 has no such select and is unchanged",
+> and both halves were wrong.** Presence was the FIRST draft of the gate and was rejected:
+> the S6 publishes `select.<obj>_mop_mode` and that entity sits at `unavailable` forever
+> (its mop is observe-only — `SET_MOP_MODE` returns `RoborockUnsupportedFeature`), so mere
+> presence would have flipped the flag True on the one model whose catalogue entry says
+> False and records it owner-confirmed. The shipped gate asks for a usable value, which
+> excludes `unavailable` AND `unknown`. The S6 is unchanged — by the usability test, not
+> by an absence. Re-measured on the live box 2026-10-18: registered, enabled, permanently
+> `unavailable`, and its options are `standard`/`deep` — **two**, where this adapter
+> declares three. A porter who copies "presence decides" re-implements the rejected draft.
 
 **A correct exclusion is defended by a mechanically wrong reason.** A sentinel is excluded on the
 grounds that a Roborock error code could legitimately *contain* the word. The test is exact set
