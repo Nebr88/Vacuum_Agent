@@ -112,10 +112,17 @@ FAN_SPEED_OPTIONS: list[dict] = [
 # the user never chose, on a picker that never rendered (has_path_control is False on every
 # catalogued model, and correctly so for the S6, owner-confirmed).
 #
-# Replacing the list makes that stored value un-declared, and `rooms/vocabulary_migration`
-# RESETS it on the next pass — deliberately, with NO `path_type_aliases` entry. An alias
-# would map wide -> standard and dress a default up as a decision; nobody picked wide, so
-# there is no intent to carry forward.
+# Replacing the list makes that stored value un-declared, and NO `path_type_aliases` entry
+# is declared for it — deliberately. An alias would map wide -> standard and dress a
+# default up as a decision; nobody picked wide, so there is no intent to carry forward.
+#
+# ⚠ THIS COMMENT CLAIMED `rooms/vocabulary_migration` "RESETS it on the next pass", AND
+# IT DID NOT. `room_vocabulary_v1` latches on first boot and ships since v2.0.0, so on
+# every install predating this change the one shot was already spent: measured, all twelve
+# rooms on the maintainer's Roborock still carried `wide` with the key latched beside them.
+# Changing an option list does not re-open a spent migration. `room_path_type_residue_v1`
+# (`rooms/vocabulary_migration.py::migrate_path_type_residue`) is the key that repairs it,
+# scoped to this axis and to RESETS only. Retiring a value here again needs the same move.
 #
 # Ranked ascending for the global pre-call: standard < deep < deep_plus. "custom" is a real
 # device option and is deliberately NOT declared — it is not a rung on this ladder (it means

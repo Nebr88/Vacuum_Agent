@@ -558,8 +558,15 @@ canonical, which is why it now reads as Roborock's — and the giveaway is that 
 > never OFFERED (`has_path_control` is False on every catalogued model, correctly so for the S6),
 > while `room_manager` defaults the field, so every Roborock room on every install was persisted
 > carrying `path_type: "wide"` — a value nobody chose on a picker that never rendered.
-> `rooms/vocabulary_migration` resets it, with no alias declared on purpose: an alias would dress
-> a default up as a decision. `supports_path_control` is now the catalogue value OR live presence
+> No alias is declared, on purpose: an alias would dress a default up as a decision.
+>
+> ⚠ **This paragraph used to say `rooms/vocabulary_migration` resets it. It did not, for two
+> months.** `room_vocabulary_v1` latches on first boot and shipped in v2.0.0, so on every install
+> that predates this list change the one shot was already spent; measured on the maintainer's box,
+> all twelve of `vacuum.ivy`'s rooms still carried `wide` with `room_vocabulary_v1: True` beside
+> them. Replacing an option list is not enough — it needs its own key. `room_path_type_residue_v1`
+> (`rooms/vocabulary_migration.py::migrate_path_type_residue`, 2026-10-18) is that key, scoped to
+> this one axis and to RESETS only, so it cannot re-adjudicate anything else on the way past. `supports_path_control` is now the catalogue value OR live presence
 > of the select, so the device decides and the catalogue can only add; the S6 has no such select
 > and is unchanged. Covered by [RT-1]..[RT-4].
 

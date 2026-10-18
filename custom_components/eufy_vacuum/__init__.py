@@ -73,7 +73,10 @@ from .core.maintenance_entity_registry_migration import (
     migrate_maintenance_entity_registry,
 )
 from .core.pause_timeout_migration import migrate_pause_timeout_defaults
-from .rooms.vocabulary_migration import migrate_room_vocabulary
+from .rooms.vocabulary_migration import (
+    migrate_path_type_residue,
+    migrate_room_vocabulary,
+)
 from .battery.manager import BatteryHealthManager
 from .core.error_tracker import ErrorTracker
 from .core.manager import EufyVacuumManager
@@ -610,6 +613,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     _migration = migrate_room_vocabulary(
                         data=manager.data, get_config=get_adapter_config,
                     )
+                    # The narrow sibling, under its OWN key. The broad repair above
+                    # latched on first boot, so on an install that predates v2.2.4 it
+                    # never saw the `path_type` list change under it and every
+                    # Roborock room still carries `wide`. Same declaration, same
+                    # planner, same deferral — one axis.
+                    _residue_migration = migrate_path_type_residue(
+                        data=manager.data, get_config=get_adapter_config,
+                    )
                     # Rides the same start hook, but is INDEPENDENT of it: this one
                     # needs no adapter declaration to judge a target, so it cannot be
                     # deferred by a provider that has not finished setting up, and a
@@ -620,7 +631,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     # a preference does not, and the old value lives only in .storage which the
                     # user is told never to open.
                     _rename_migration = migrate_maintenance_component_renames(data=manager.data)
-                    if (_migration["changes"] or _pause_migration["changes"]
+                    if (_migration["changes"] or _residue_migration["changes"]
+                            or _pause_migration["changes"]
                             or _rename_migration["changes"]):
                         await manager.async_save()
                 except Exception:  # pragma: no cover

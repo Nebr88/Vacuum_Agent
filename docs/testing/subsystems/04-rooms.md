@@ -2,7 +2,7 @@
 
 The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and the
 **access graph** (which rooms grant cleaning access to which, plus the rule
-engine that gates/modifies rooms at start). Covered by **388 tests across 11 files**.
+engine that gates/modifies rooms at start). Covered by **399 tests across 12 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [17 — A Room's Identity](../../dev/17-room-identity.md), [18 — The Access Graph](../../dev/18-access-graph.md)
@@ -110,6 +110,63 @@ migration needs no retired-value map to subsume it: `Standard` is simply absent
 from Eufy's declared `clean_intensity_options`, so the generic RESET catches it and
 Eufy's own `default_profile` supplies `Quick`. Same answer, from a declaration.
 
+### The `path_type` residue — a second, narrower repair (added 2026-10-18)
+
+The one-shot above has a blind spot its own comment denied. v2.2.4 (`8b44bc24`)
+replaced Roborock's `path_type` option list `wide`/`narrow` with
+`standard`/`deep`/`deep_plus` and asserted the migration "RESETS it on the next pass".
+It did not and could not: `room_vocabulary_v1` ships since v2.0.0 and latches on first
+boot, so on every install that predates the list change the one shot was already spent.
+Measured on the maintainer's box: all twelve of `vacuum.ivy`'s rooms still carried
+`path_type: "wide"` with `room_vocabulary_v1: True` beside them — a value no option
+matches, no picker can change, and the dispatch filter silently drops.
+
+`MIGRATION_KEY`'s comment says "only bump if the RULES change", which is why nobody
+bumped it. The in-tree precedent that fits is `maintenance_component_renames_v3`:
+**"BUMP THIS WHENEVER YOU ADD A ROW"** — a new key per residue, because the trigger is
+an option LIST changing under stored data, not a change of rules.
+
+**Why a second key rather than a bump, and this is the whole design.** Bumping
+re-opens every axis on every brand against today's lists. Both planners were dry-run
+over the same real storage: the narrow repair plans **12** changes, all of them the
+intended resets; the broad one plans **13** — the extra being `fan_speed: "Max"`
+falling to the default profile's `balanced` on one room. There is no alias for `Max`,
+so the default supplies the answer and a room somebody set to the fastest suction
+silently drops to the middle. A cleaning regression, with no error, inside a migration
+asked to fix a route value. (13 is a floor: the probe could only judge the brand whose
+option lists are module constants, so Eufy and Dreame contributed nothing to it.)
+
+`test_path_type_residue_migration.py` (11 tests) therefore spends most of its assertions on what
+the repair declines to do. Nine of the eleven are ablation-verified; PTR-11 is a set
+containment and PTR-2 rides PTR-1's parametrize:
+
+| id | what it holds |
+|---|---|
+| `PTR-1` / `PTR-2` | both values v2.2.4 retired are repaired — by the DECLARATION, not by knowing the string `wide` |
+| `PTR-3` | **the narrowing** — out-of-vocabulary `clean_mode` and `fan_speed` in the same room are left alone, and the broad planner is run over that same room to prove the collateral is real |
+| `PTR-4` | an in-vocabulary `path_type` is not re-adjudicated |
+| `PTR-5` | **resets only, never drops** — an Eufy room's `path_type` is a DROP (Eufy declares the axis in no profile) and this repair must not answer that question |
+| `PTR-6` | a spent `room_vocabulary_v1` does not skip it — the upgrader's real state, and the reason for a second key |
+| `PTR-7` | idempotent; the second run reports `ran: False` |
+| `PTR-8` | an unjudgeable target DEFERS without burning the key (the MIG-11 rule, inherited) |
+| `PTR-9` | `fields` INTERSECTS the vocabulary axes rather than replacing them |
+| `PTR-10` | no declared option list still means "cannot judge" (the MIG-5 rule, inherited) |
+| `PTR-11` | every axis named in `RESIDUE_FIELDS` is a real vocabulary axis — a rename would narrow the repair to nothing, silently |
+
+**PTR-9 is the one that is easy to skip.** The narrowing is implemented as a `fields`
+filter on the shared planner, and the obvious spelling — `for field in (fields or
+_VOCABULARY_FIELDS)` — lets a caller name `name` or `room_id`, which sit in the same
+dict as the settings and appear in no option list. Every room would be stripped of its
+name. The filter is an intersection with `_VOCABULARY_FIELDS` for that reason.
+
+**PTR-5 needed a second attempt to bite.** Written first against a Roborock room
+carrying `clean_intensity`, it passed with the reset-only filter deliberately removed —
+because the `fields` filter already stopped `clean_intensity` from being iterated at
+all, so no DROP was ever planned and the assertion tested nothing. The live shape for
+a DROP under a `path_type`-only filter is an **Eufy** room: Eufy declares the axis in
+no profile (a deliberate subtraction — it is the second name for `clean_intensity`).
+Rewritten against that, the ablation reddens.
+
 ---
 
 ## Coverage map
@@ -124,7 +181,7 @@ Eufy's own `default_profile` supplies `Quick`. Same answer, from a declaration.
 | `room_manager.py` | 82 | 96% | `test_room_manager.py` (unit) | unit | clean |
 | `room_defaults.py` | 21 | 100% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit | clean |
 | `utils.py` | 3 | 100% | `test_rooms_utils.py` (unit) | unit | clean |
-| `vocabulary_migration.py` | 96 | 91% | `test_vocabulary_migration.py` (unit) | unit | clean |
+| `vocabulary_migration.py` | 96 | 91% | `test_vocabulary_migration.py`, `test_path_type_residue_migration.py` (unit) | unit | clean |
 
 (Room-facing services live in [17 — services](17-services.md):
 `test_services_rooms.py`, `test_services_access_graph.py`.)

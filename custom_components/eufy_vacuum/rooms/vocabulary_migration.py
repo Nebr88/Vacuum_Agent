@@ -55,6 +55,7 @@ judge", never "does not exist"; only absence from the brand's own PROFILES means
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection
 from typing import Any
 
 from ..profiles.room_profiles import VOCABULARY_FIELDS, declared_profile_fields
@@ -191,17 +192,50 @@ def _unadjudicated_targets(*, data: dict[str, Any], get_config) -> list[str]:
     return pending
 
 
+def _apply_changes(*, data: dict[str, Any], changes: list[dict[str, Any]]) -> None:
+    """Write a planned change list onto ``data``. Shared by every repair in this module.
+
+    One applier, because the change RECORD is a replica: the planner writes it and an
+    applier reads it, and a second hand-written loop would be the copy that keeps the
+    old shape after the planner grows a field.
+    """
+    for change in changes:
+        room = (
+            ((data.get("maps") or {}).get(change["vacuum_entity_id"]) or {})
+            .get(change["map_id"], {})
+            .get("rooms", {})
+            .get(change["room_id"])
+        )
+        if not isinstance(room, dict):
+            continue
+        if change["action"] == "drop":
+            room.pop(change["field"], None)
+        else:
+            room[change["field"]] = change["new"]
+
+
 def plan_room_vocabulary_migration(
     *,
     data: dict[str, Any],
     get_config,
+    fields: Collection[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return the changes the migration WOULD make. Pure: touches nothing.
 
     ``get_config`` is ``adapters.registry.get_adapter_config``, injected so this stays
     importable without the registry and testable without registering an adapter.
+
+    ``fields`` narrows the judgement to a subset of the vocabulary axes, for a repair
+    scoped to ONE axis whose option list changed after the broad repair's latch was
+    spent (``migrate_path_type_residue`` below). It is an INTERSECTION with
+    ``_VOCABULARY_FIELDS``, never a replacement for it: a caller cannot name a field
+    that is not a vocabulary axis and have it judged, because ``name`` and ``room_id``
+    sit in the same dict and judging them would strip a room's identity.
     """
     planned: list[dict[str, Any]] = []
+    judged_fields = tuple(
+        f for f in _VOCABULARY_FIELDS if fields is None or f in fields
+    )
 
     for vacuum_entity_id, maps in (data.get("maps") or {}).items():
         if not isinstance(maps, dict):
@@ -232,7 +266,7 @@ def plan_room_vocabulary_migration(
             for room_id, room in (bucket.get("rooms") or {}).items():
                 if not isinstance(room, dict):
                     continue
-                for field in _VOCABULARY_FIELDS:
+                for field in judged_fields:
                     if field not in room:
                         continue
                     if field not in declared:
@@ -320,20 +354,7 @@ def migrate_room_vocabulary(
         return {"ran": False, "changes": [], "rooms_touched": 0}
 
     changes = plan_room_vocabulary_migration(data=data, get_config=get_config)
-
-    for change in changes:
-        room = (
-            ((data.get("maps") or {}).get(change["vacuum_entity_id"]) or {})
-            .get(change["map_id"], {})
-            .get("rooms", {})
-            .get(change["room_id"])
-        )
-        if not isinstance(room, dict):
-            continue
-        if change["action"] == "drop":
-            room.pop(change["field"], None)
-        else:
-            room[change["field"]] = change["new"]
+    _apply_changes(data=data, changes=changes)
 
     # LATCH ONLY IF THIS RUN COULD ACTUALLY SEE SOMETHING.
     #
@@ -403,5 +424,128 @@ def migrate_room_vocabulary(
         "changes": changes,
         "rooms_touched": touched,
         # False means this run declined to record itself as done and will retry.
+        "latched": _latched,
+    }
+
+
+# ---------------------------------------------------------------------------
+# The path_type residue — a SECOND, narrower repair with its own key
+# ---------------------------------------------------------------------------
+#
+# v2.2.4 (`8b44bc24`) replaced Roborock's `path_type` option list `wide`/`narrow` with
+# `standard`/`deep`/`deep_plus`, and its own comment asserts that the repair above
+# "RESETS it on the next pass". It does not, and could not: `room_vocabulary_v1` ships
+# since v2.0.0 and LATCHES on first boot, so on every install that existed before the
+# list changed the one shot was already spent. Measured on this house's box: all twelve
+# of `vacuum.ivy`'s rooms still carry `path_type: "wide"` with
+# `migrations.room_vocabulary_v1: True` beside them. A value no option matches, no
+# picker can change, and the dispatch filter silently drops.
+#
+# The in-tree precedent for the right move is `maintenance_component_renames_v3`, whose
+# key carries "BUMP THIS WHENEVER YOU ADD A ROW" — the opposite of `MIGRATION_KEY`'s
+# "only bump if the RULES change".
+#
+# WHY A NEW KEY AND NOT A BUMP OF `room_vocabulary_v1`, which was the obvious move and
+# is the dangerous one. Bumping re-opens EVERY axis on EVERY brand against TODAY's
+# option lists. Dry-run against this house's real storage, both planners over the same
+# data: this repair plans 12 changes, all of them the intended path_type resets. The
+# broad one plans 13 — the same 12 plus `fan_speed: "Max"` -> `"balanced"` on one of
+# ivy's rooms. Not "max": there is no alias, so the default profile supplies the answer
+# and a room somebody set to the FASTEST suction silently drops to the middle one. A
+# cleaning regression, invisible, in a migration that was asked to fix a route value.
+#
+# ⚠ 13 IS A FLOOR, NOT A TOTAL. The probe judged only the brand whose option lists are
+# module constants; Eufy assembles its lists inside `adapter.py` and no Dreame config
+# was supplied, so `vacuum.alfred` and `vacuum.robin` were unjudgeable in it and
+# contributed nothing. Both carry display-cased values on disk (`clean_mode: "Vacuum
+# and mop"`, `water_level: "32"`) that a live broad run would judge. The bound argues
+# the same way whichever side it moves: one list changed, so one field is repaired.
+#
+# This repair therefore does RESETS ONLY. A DROP means "the brand has no such axis",
+# which is the broad repair's question, judged under the broad repair's latch; a
+# narrow repair that also dropped would be re-adjudicating the very thing it exists to
+# avoid, through a smaller door.
+
+#: Bump to re-run. Unlike ``MIGRATION_KEY``, the rule for THIS one is the rule
+#: ``maintenance_component_renames_v3`` states: a new key per residue, because the
+#: trigger is an option LIST that changed under stored data, not a change of rules.
+RESIDUE_MIGRATION_KEY = "room_path_type_residue_v1"
+
+#: The one axis v2.2.4 re-spelled. Adding a field here does NOT repair it — the latched
+#: key above would skip the run entirely on every install that has already seen it. A
+#: new residue needs a new key.
+RESIDUE_FIELDS: tuple[str, ...] = ("path_type",)
+
+
+def plan_path_type_residue_repair(
+    *, data: dict[str, Any], get_config
+) -> list[dict[str, Any]]:
+    """Return the resets the narrow repair WOULD make. Pure: touches nothing.
+
+    Every safety rule of the broad repair still applies, because this is the same
+    planner: no declaration means skip, no option list means "cannot judge", and a
+    default that is not in the brand's own options is reported rather than written.
+    """
+    return [
+        change
+        for change in plan_room_vocabulary_migration(
+            data=data, get_config=get_config, fields=RESIDUE_FIELDS
+        )
+        if change["action"] == "reset"
+    ]
+
+
+def migrate_path_type_residue(
+    *, data: dict[str, Any], get_config, force: bool = False
+) -> dict[str, Any]:
+    """Reset a stored ``path_type`` the brand no longer declares. Idempotent.
+
+    Independent of ``migrate_room_vocabulary`` in every direction: its own key, so a
+    spent ``room_vocabulary_v1`` does not skip this, and a spent key here does not skip
+    that. Returns the same shape as ``migrate_room_vocabulary``, including the
+    ``latched`` key being ABSENT on the already-migrated early return.
+
+    The caller persists ``data``; nothing here writes to disk.
+    """
+    migrations = data.setdefault("migrations", {})
+    if migrations.get(RESIDUE_MIGRATION_KEY) and not force:
+        return {"ran": False, "changes": [], "rooms_touched": 0}
+
+    changes = plan_path_type_residue_repair(data=data, get_config=get_config)
+    _apply_changes(data=data, changes=changes)
+
+    # Same deferred-latch rule as ``migrate_room_vocabulary`` — see the long note there
+    # for why recording is conditional. It applies unchanged: this repair is judged
+    # against a DECLARATION too, so a cold boot whose vacuum providers have not set up
+    # yet must not burn this key either.
+    _pending = _unadjudicated_targets(data=data, get_config=get_config)
+    _latched = not _pending
+    if _latched:
+        migrations[RESIDUE_MIGRATION_KEY] = True
+    else:
+        _LOGGER.debug(
+            "path_type_residue: %d vacuum(s) with stored rooms had no adapter "
+            "declaration to judge against (%s); NOT recording the repair as done — "
+            "it will retry on the next start",
+            len(_pending), ", ".join(_pending),
+        )
+
+    touched = len({(c["vacuum_entity_id"], c["map_id"], c["room_id"]) for c in changes})
+    if changes:
+        _LOGGER.info(
+            "path_type_residue: reset %d stored path_type value(s) across %d room(s) "
+            "that the brand's current option list no longer declares",
+            len(changes), touched,
+        )
+        for c in changes:
+            _LOGGER.info(
+                "path_type_residue:   %s room %s: path_type=%r -> %r",
+                c["vacuum_entity_id"], c["room_id"], c["old"], c["new"],
+            )
+
+    return {
+        "ran": True,
+        "changes": changes,
+        "rooms_touched": touched,
         "latched": _latched,
     }
