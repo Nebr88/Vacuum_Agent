@@ -844,6 +844,19 @@ def test_rt_3_the_select_turns_the_axis_on_even_on_an_uncatalogued_model(monkeyp
 
     ABLATION: drop the entity-presence OR from `_route_axis` and this goes red — the model
     is uncatalogued, so the profile contributes False and nothing else would raise it.
+
+    ⚠ THIS TEST CONFLATED TWO THINGS and ISSUE #71 separated them. It asserted the
+    CAPABILITY (the device publishes the select, so the axis exists) and, in the same
+    breath, that the PUSH is declared — and its name promises the user symptom, "does not
+    show any setting for the mop route", which neither assertion could ever reach. The
+    picker reads `clean_intensity_options`; Roborock declares `path_type_options`; the
+    symptom survived #66 untouched while this test went green.
+
+    The capability half is unchanged and still asserted here. The push half moved to
+    [RT-10]/[RT-11], which gate it on the axis being USER-VISIBLE — because until it is,
+    pushing it overwrites the route the owner set in the vendor app with a default they
+    were never shown. The pre-call's SHAPE is still pinned below, under the same gate the
+    product now uses, so none of #66's grounded detail is lost.
     """
     clear_registry()
     _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a15")
@@ -854,7 +867,18 @@ def test_rt_3_the_select_turns_the_axis_on_even_on_an_uncatalogued_model(monkeyp
     rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
     cfg = get_adapter_config(_RVAC)
 
-    assert cfg["capabilities"]["supports_path_control"] is True
+    assert cfg["capabilities"]["supports_path_control"] is True, (
+        "the device publishes the select, so the axis exists — #66's actual finding"
+    )
+
+    # The pre-call's SHAPE, under the user-visibility gate [RT-10] introduced. Asserting
+    # it unconditionally is what this test used to do, and what #71 showed to be wrong.
+    monkeypatch.setattr(
+        rb.vocabulary, "CLEAN_INTENSITY_OPTIONS",
+        [{"value": "standard", "label": "Standard"}], raising=False,
+    )
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
 
     entry = _route_pre_call(cfg)
     assert entry is not None, "the route pre-call was not declared"
@@ -1637,3 +1661,78 @@ def test_ms13_has_mop_follows_the_module_not_the_select(hass, monkeypatch):
     assert cfg["capabilities"]["supports_mop_features"] is False, (
         "a mop-intensity select exists on every V1 Roborock; it is not evidence of a mop"
     )
+
+
+def _route_pre_call(cfg):
+    """The route entry of the mop global_pre_calls, or None."""
+    pre = (cfg.get("dispatch") or {}).get("global_pre_calls") or []
+    return next((p for p in pre if p.get("field") == "path_type"), None)
+
+
+def test_rt10_route_is_not_pushed_while_no_user_surface_exists(monkeypatch, hass):
+    """[RT-10] ISSUE #71 — we were setting a route the user could not see or change.
+
+    #66 made the route axis live: `_route_axis` is true whenever the device publishes
+    `select.<obj>_mop_mode`, and the pre-call then pushes each group's `path_type` before
+    dispatch. The other half never shipped. The axis is declared as `path_type_options`
+    and every card surface reads `clean_intensity_options`, so the picker has never
+    rendered for any Roborock; there is no room-switch option key, no service parameter
+    and no chip. `path_type` is therefore ALWAYS the untouched default.
+
+    So on a Saros 10 the integration pushed `mop_mode = standard` before every clean,
+    overwriting whatever route the owner had set in the Roborock app — from a value they
+    were never shown. "Route is not offered" and "route is silently set" were one defect.
+
+    THE GATE IS THE SURFACE, NOT A HARD FALSE, and that is deliberate: this does not
+    pre-judge whether Roborock should re-declare the axis under the canonical name or the
+    card should learn a second key. Whichever way that is settled, declaring the options
+    the card reads is what makes the setting user-visible — and this pre-call turns itself
+    back on at the same moment. [RT-11] is the other arm.
+
+    ABLATION: restore the unconditional `if _route_axis:` and this goes red.
+    """
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a147")
+    hass.states.async_set(
+        "select.ivy_mop_mode", "standard",
+        {"options": ["standard", "deep", "deep_plus"]},
+    )
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
+
+    assert cfg["capabilities"]["supports_path_control"] is True, (
+        "the capability is unchanged — the device does publish the select"
+    )
+    assert _route_pre_call(cfg) is None, (
+        "pushed a route the user has no way to choose, overwriting their app setting"
+    )
+
+
+def test_rt11_route_is_pushed_once_the_axis_is_user_visible(monkeypatch, hass):
+    """[RT-11] The other arm: the gate is the user surface, not a disablement.
+
+    Without this, [RT-10] is satisfied by deleting the feature, and the day someone
+    settles the naming question nothing would tell them the pre-call should come back.
+    Declaring the option list the card actually reads is what makes the axis visible, and
+    that is what re-arms the push.
+
+    ABLATION: hard-code the gate to False and this goes red while [RT-10] stays green.
+    """
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a147")
+    monkeypatch.setattr(
+        rb.vocabulary, "CLEAN_INTENSITY_OPTIONS",
+        [{"value": "standard", "label": "Standard"}], raising=False,
+    )
+    hass.states.async_set(
+        "select.ivy_mop_mode", "standard",
+        {"options": ["standard", "deep", "deep_plus"]},
+    )
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
+
+    pre = _route_pre_call(cfg)
+    assert pre is not None, "a visible axis must be pushed again"
+    assert pre["service"]["target_role"] == "mop_mode"

@@ -55,6 +55,10 @@ from .maintenance_components import MAINTENANCE_COMPONENTS
 from .model_catalog import DEFAULT_PROFILE, profile_for_model
 from .upkeep_catalog import ROBOROCK_MODEL_NAMES
 from .upkeep_keys import ROBOROCK_MODEL_KEY_REGIMES, ROBOROCK_UPKEEP_KEY_GUIDES
+# Module-bound as well as name-bound: the route gate below asks whether the brand
+# declares the option list the CARD reads, and that question has to survive the
+# list not existing yet (ISSUE #71).
+from . import vocabulary
 from .vocabulary import (
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
@@ -478,7 +482,28 @@ def register_roborock_adapter_for_vacuum(
     # Gated on _route_axis (the select being present), not on mop_settable: the route is a
     # capability of the dock/mop hardware the device reports for itself, and the S6 — whose
     # mop is observe-only — has no such select, so this stays empty there.
-    if _route_axis:
+    # ISSUE #71 — DO NOT PUSH A SETTING THE USER CANNOT SEE OR CHANGE.
+    #
+    # #66 made this axis live: `_route_axis` is true whenever the device publishes the
+    # select, and this pre-call then pushes each group's `path_type`. The other half never
+    # shipped. The axis is declared as `path_type_options` and EVERY card surface reads
+    # `clean_intensity_options`, so the picker has never rendered for any Roborock — and
+    # there is no room-switch option key, no `update_room_fields` parameter and no chip
+    # either. `path_type` is therefore always the untouched default.
+    #
+    # The result, reported on a Saros 10: we pushed `mop_mode = standard` before every
+    # clean, overwriting the route the owner had set in the Roborock app, from a value
+    # they were never shown. "Route is not offered" and "route is silently set" are one
+    # defect seen from both ends.
+    #
+    # THE GATE IS THE USER SURFACE, NOT A HARD FALSE. Whether Roborock should re-declare
+    # this axis under the canonical name, or the card should learn to read a second key,
+    # is an open design question and this does not pre-judge it — declaring the option
+    # list the card reads is what makes the setting visible under EITHER answer, and this
+    # push re-arms itself at that moment. [RT-10] pins the suppression, [RT-11] the
+    # re-arming, so neither can be satisfied by deleting the feature.
+    _route_user_visible = bool(getattr(vocabulary, "CLEAN_INTENSITY_OPTIONS", None))
+    if _route_axis and _route_user_visible:
         mop_pre_calls.append(
             {
                 "field": "path_type",
