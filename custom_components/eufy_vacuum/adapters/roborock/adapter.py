@@ -61,6 +61,7 @@ from .upkeep_keys import ROBOROCK_MODEL_KEY_REGIMES, ROBOROCK_UPKEEP_KEY_GUIDES
 from . import vocabulary
 from .vocabulary import (
     build_option_list,
+    build_positional_aliases,
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
     CANCEL_DETECTION_STATES,
@@ -345,6 +346,17 @@ def register_roborock_adapter_for_vacuum(
     )
     _water_options = build_option_list(_live_water_values) or list(WATER_LEVEL_OPTIONS)
     _water_rank = [str(o["value"]) for o in _water_options]
+    # CARRY THE RETIRED WORDS, do not discard them. A room stored `water_level: "medium"`
+    # before this read existed; on a Saros the live ladder is off/mild/standard/intense,
+    # so `medium` is now out of vocabulary. `vocabulary_migration` resets an
+    # out-of-vocabulary value to the brand's DEFAULT PROFILE unless the brand declares an
+    # alias — and this brand's default profile is vacuum_quick, whose water_level is
+    # "off". An un-aliased repair would therefore silently STOP THE MOP in every room
+    # somebody had set to medium. Position is the meaning on an ascending ladder, so the
+    # middle rung becomes the middle rung.
+    _water_aliases = build_positional_aliases(
+        [str(o["value"]) for o in WATER_LEVEL_OPTIONS], _water_rank,
+    )
 
     mop_pre_calls: list[dict] = []
     if mop_settable:
@@ -825,6 +837,10 @@ def register_roborock_adapter_for_vacuum(
                     # off/low/medium/high only when it did not. Same list the water
                     # pre-call ranks — one derivation, see `_water_options`.
                     "water_level_options": _water_options,
+                    # Retired ladder words -> this device's own, by position. Empty
+                    # when the device publishes the ladder we declared (the S6), so
+                    # this is inert wherever the vocabulary did not move.
+                    **({"water_level_aliases": _water_aliases} if _water_aliases else {}),
                 }
                 if mop_settable
                 else {}

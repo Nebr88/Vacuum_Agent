@@ -607,3 +607,41 @@ def build_option_list(values) -> list[dict]:
         seen.add(token)
         options.append({"value": token, "label": _DECLARED_LABELS.get(token) or humanize_option(token)})
     return options
+
+
+def build_positional_aliases(declared, live) -> dict[str, str]:
+    """Map retired ladder words onto the device's own, BY POSITION.
+
+    A stored ``water_level: "medium"`` on a machine whose ladder is
+    off/mild/standard/intense is not a value to throw away — somebody chose the middle
+    rung, and the middle rung still exists under another word. Position IS the meaning
+    on an ascending ladder, so index 2 becomes index 2.
+
+    This is what ``rooms/vocabulary_migration.py::_alias_target`` consumes, and the
+    distinction it draws is the one that matters: a retired value the brand ALIASES
+    keeps its meaning; only a value with no alias falls back to the default profile.
+    Falling back here would be `off` — the default profile is vacuum_quick — so an
+    un-aliased repair would silently STOP THE MOP on every Saros room. Roborock
+    declines an alias for ``path_type: "wide"`` for the opposite reason: nobody picked
+    wide, so there is no intent to carry.
+
+    A declared rung past the end of a SHORTER device ladder clamps to that ladder's top
+    rather than going unmapped. Clamping is the safe direction for this axis — under-mop
+    is accepted over wet-mop, the same asymmetry `mixed_mode_water_policy: "safest"`
+    rests on — and unmapped means the default, which is `off`.
+
+    Identical ladders yield ``{}``: every declared word is still live, so nothing is
+    retired and nothing needs carrying. That is the S6 case, and it is why this is inert
+    on a machine whose vocabulary did not move.
+    """
+    live_values = [str(v).strip() for v in (live or []) if str(v).strip()]
+    if not live_values:
+        return {}
+    live_lower = {v.lower() for v in live_values}
+    aliases: dict[str, str] = {}
+    for index, raw in enumerate(declared or []):
+        token = str(raw).strip()
+        if not token or token.lower() in live_lower:
+            continue
+        aliases[token.lower()] = live_values[min(index, len(live_values) - 1)]
+    return aliases

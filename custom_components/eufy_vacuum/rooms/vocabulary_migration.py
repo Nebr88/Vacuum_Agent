@@ -477,28 +477,60 @@ RESIDUE_MIGRATION_KEY = "room_path_type_residue_v1"
 RESIDUE_FIELDS: tuple[str, ...] = ("path_type",)
 
 
-def plan_path_type_residue_repair(
-    *, data: dict[str, Any], get_config
+#: The water ladder is now READ off `select.<obj>_mop_intensity` rather than declared
+#: (issue #71), so a machine whose rungs are off/mild/standard/intense retires our
+#: transcribed low/medium/high. Its own key, because `room_path_type_residue_v1` has
+#: already latched on every install that has seen it — adding a field to that tuple
+#: would repair nothing.
+WATER_RESIDUE_MIGRATION_KEY = "room_water_level_residue_v1"
+WATER_RESIDUE_FIELDS: tuple[str, ...] = ("water_level",)
+
+
+def plan_residue_repair(
+    *, data: dict[str, Any], get_config, fields: Collection[str]
 ) -> list[dict[str, Any]]:
-    """Return the resets the narrow repair WOULD make. Pure: touches nothing.
+    """Return the RESETS a narrow repair would make for ``fields``. Pure.
 
     Every safety rule of the broad repair still applies, because this is the same
-    planner: no declaration means skip, no option list means "cannot judge", and a
-    default that is not in the brand's own options is reported rather than written.
+    planner: no declaration means skip, no option list means "cannot judge", a declared
+    alias carries a retired value's meaning, and a default that is not in the brand's
+    own options is reported rather than written.
+
+    RESETS ONLY. A DROP answers "does this brand have the axis at all?", which is the
+    broad repair's question under the broad repair's latch; a narrow repair that also
+    dropped would re-adjudicate the very thing it exists to avoid, through a smaller
+    door.
     """
     return [
         change
         for change in plan_room_vocabulary_migration(
-            data=data, get_config=get_config, fields=RESIDUE_FIELDS
+            data=data, get_config=get_config, fields=fields
         )
         if change["action"] == "reset"
     ]
 
 
-def migrate_path_type_residue(
-    *, data: dict[str, Any], get_config, force: bool = False
+def plan_path_type_residue_repair(
+    *, data: dict[str, Any], get_config
+) -> list[dict[str, Any]]:
+    """The ``path_type`` instance of :func:`plan_residue_repair`."""
+    return plan_residue_repair(data=data, get_config=get_config, fields=RESIDUE_FIELDS)
+
+
+def plan_water_level_residue_repair(
+    *, data: dict[str, Any], get_config
+) -> list[dict[str, Any]]:
+    """The ``water_level`` instance of :func:`plan_residue_repair`."""
+    return plan_residue_repair(
+        data=data, get_config=get_config, fields=WATER_RESIDUE_FIELDS
+    )
+
+
+def _migrate_residue(
+    *, data: dict[str, Any], get_config, key: str, fields: Collection[str],
+    label: str, force: bool = False,
 ) -> dict[str, Any]:
-    """Reset a stored ``path_type`` the brand no longer declares. Idempotent.
+    """Run one narrow repair. Shared so two axes cannot drift apart.
 
     Independent of ``migrate_room_vocabulary`` in every direction: its own key, so a
     spent ``room_vocabulary_v1`` does not skip this, and a spent key here does not skip
@@ -508,10 +540,10 @@ def migrate_path_type_residue(
     The caller persists ``data``; nothing here writes to disk.
     """
     migrations = data.setdefault("migrations", {})
-    if migrations.get(RESIDUE_MIGRATION_KEY) and not force:
+    if migrations.get(key) and not force:
         return {"ran": False, "changes": [], "rooms_touched": 0}
 
-    changes = plan_path_type_residue_repair(data=data, get_config=get_config)
+    changes = plan_residue_repair(data=data, get_config=get_config, fields=fields)
     _apply_changes(data=data, changes=changes)
 
     # Same deferred-latch rule as ``migrate_room_vocabulary`` — see the long note there
@@ -521,26 +553,25 @@ def migrate_path_type_residue(
     _pending = _unadjudicated_targets(data=data, get_config=get_config)
     _latched = not _pending
     if _latched:
-        migrations[RESIDUE_MIGRATION_KEY] = True
+        migrations[key] = True
     else:
         _LOGGER.debug(
-            "path_type_residue: %d vacuum(s) with stored rooms had no adapter "
-            "declaration to judge against (%s); NOT recording the repair as done — "
-            "it will retry on the next start",
-            len(_pending), ", ".join(_pending),
+            "%s: %d vacuum(s) with stored rooms had no adapter declaration to judge "
+            "against (%s); NOT recording the repair as done — it will retry on the "
+            "next start",
+            label, len(_pending), ", ".join(_pending),
         )
 
     touched = len({(c["vacuum_entity_id"], c["map_id"], c["room_id"]) for c in changes})
     if changes:
         _LOGGER.info(
-            "path_type_residue: reset %d stored path_type value(s) across %d room(s) "
-            "that the brand's current option list no longer declares",
-            len(changes), touched,
+            "%s: reset %d stored value(s) across %d room(s) that the brand's current "
+            "option list no longer declares", label, len(changes), touched,
         )
         for c in changes:
             _LOGGER.info(
-                "path_type_residue:   %s room %s: path_type=%r -> %r",
-                c["vacuum_entity_id"], c["room_id"], c["old"], c["new"],
+                "%s:   %s room %s: %s=%r -> %r",
+                label, c["vacuum_entity_id"], c["room_id"], c["field"], c["old"], c["new"],
             )
 
     return {
@@ -549,3 +580,42 @@ def migrate_path_type_residue(
         "rooms_touched": touched,
         "latched": _latched,
     }
+
+
+def migrate_path_type_residue(
+    *, data: dict[str, Any], get_config, force: bool = False
+) -> dict[str, Any]:
+    """Reset a stored ``path_type`` the brand no longer declares. Idempotent.
+
+    v2.2.4 replaced Roborock's list ``wide``/``narrow`` with
+    ``standard``/``deep``/``deep_plus`` and bumped no key, so the broad repair's one
+    shot was already spent on every install that predated it.
+    """
+    return _migrate_residue(
+        data=data, get_config=get_config, key=RESIDUE_MIGRATION_KEY,
+        fields=RESIDUE_FIELDS, label="path_type_residue", force=force,
+    )
+
+
+def migrate_water_level_residue(
+    *, data: dict[str, Any], get_config, force: bool = False
+) -> dict[str, Any]:
+    """Carry a stored ``water_level`` onto the device's own ladder. Idempotent.
+
+    Issue #71: the Roborock water vocabulary is now READ off
+    ``select.<obj>_mop_intensity`` rather than transcribed from one S6. On a machine
+    whose rungs are off/mild/standard/intense, a room stored ``medium`` is suddenly out
+    of vocabulary.
+
+    ⚠ THIS REPAIR IS ONLY SAFE BECAUSE THE BRAND DECLARES POSITIONAL ALIASES. Without
+    them the planner falls back to the brand's ``default_profile``, which for Roborock
+    is ``vacuum_quick`` — ``water_level: "off"``. The "repair" would then silently stop
+    the mop in every room somebody had set to medium or high: a valid stored value, a
+    clean migration log, and a floor that never gets washed again. ``_alias_target`` is
+    consulted BEFORE the default for exactly this case, and
+    ``roborock/vocabulary.py::build_positional_aliases`` supplies the map.
+    """
+    return _migrate_residue(
+        data=data, get_config=get_config, key=WATER_RESIDUE_MIGRATION_KEY,
+        fields=WATER_RESIDUE_FIELDS, label="water_level_residue", force=force,
+    )

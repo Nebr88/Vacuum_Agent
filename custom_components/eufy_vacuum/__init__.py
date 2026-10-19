@@ -76,6 +76,7 @@ from .core.pause_timeout_migration import migrate_pause_timeout_defaults
 from .rooms.vocabulary_migration import (
     migrate_path_type_residue,
     migrate_room_vocabulary,
+    migrate_water_level_residue,
 )
 from .battery.manager import BatteryHealthManager
 from .core.error_tracker import ErrorTracker
@@ -621,6 +622,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     _residue_migration = migrate_path_type_residue(
                         data=manager.data, get_config=get_adapter_config,
                     )
+                    # The water ladder is now READ off the device (issue #71), so a
+                    # machine whose rungs are off/mild/standard/intense retires the
+                    # low/medium/high we used to declare. Carried by the brand's
+                    # POSITIONAL aliases, not reset — the default profile's water_level
+                    # is "off", so an un-aliased repair would stop the mop.
+                    _water_residue_migration = migrate_water_level_residue(
+                        data=manager.data, get_config=get_adapter_config,
+                    )
                     # Rides the same start hook, but is INDEPENDENT of it: this one
                     # needs no adapter declaration to judge a target, so it cannot be
                     # deferred by a provider that has not finished setting up, and a
@@ -632,6 +641,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     # user is told never to open.
                     _rename_migration = migrate_maintenance_component_renames(data=manager.data)
                     if (_migration["changes"] or _residue_migration["changes"]
+                            or _water_residue_migration["changes"]
                             or _pause_migration["changes"]
                             or _rename_migration["changes"]):
                         await manager.async_save()

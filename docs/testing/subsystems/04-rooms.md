@@ -159,6 +159,56 @@ _VOCABULARY_FIELDS)` — lets a caller name `name` or `room_id`, which sit in th
 dict as the settings and appear in no option list. Every room would be stripped of its
 name. The filter is an intersection with `_VOCABULARY_FIELDS` for that reason.
 
+### The `water_level` residue — the same shape, with a sharper edge (added 2026-10-19)
+
+`adapters/roborock` now READS its water ladder off `select.<obj>_mop_intensity` instead
+of declaring a transcript of one S6 (issue #71 — see
+[15 — adapters](15-adapters.md)). On a Saros 10 the rungs are
+`off/mild/standard/intense/extreme`, so a room stored `water_level: "medium"` is
+suddenly out of vocabulary. Same residue shape as `path_type`, so
+`test_water_level_residue_migration.py` reuses the same generalised machinery under its
+own key, `room_water_level_residue_v1`.
+
+**What makes this one sharper is where the fallback leads.** The broad repair resets an
+out-of-vocabulary value to the brand's `default_profile`, and Roborock's default profile
+is `vacuum_quick`, whose `water_level` is **`off`**. So the obvious repair turns every
+room somebody set to medium or high into a room that does not mop — a valid stored
+value, a clean migration log, no error anywhere, and a floor that never gets washed
+again. The `path_type` repair's collateral was a room cleaning *less*; this one stops
+cleaning.
+
+The brand therefore declares **positional aliases**, which `_alias_target` consults
+*before* the default: index 2 of the retired ladder becomes index 2 of the live one,
+because on an ascending ladder position IS the meaning. Roborock declines an alias for
+`path_type: "wide"` for the opposite reason — nobody picked `wide`, so there is no
+intent to carry forward. Somebody did pick `medium`.
+
+| id | what it holds |
+|---|---|
+| `WLR-1` | a retired rung keeps its position — `low→mild`, `medium→standard`, `high→intense`, parameterized so a mapping right in the middle and wrong at the ends cannot pass |
+| `WLR-2` | **the alias is load-bearing** — same room, same repair, alias declaration removed, and the value becomes `off`. An assertion about the BAD outcome, so dropping the alias is loud instead of quiet |
+| `WLR-3` | a rung the device still has is left alone |
+| `WLR-4`/`WLR-5` | its own key — neither a spent `room_vocabulary_v1` nor a spent `room_path_type_residue_v1` skips it |
+| `WLR-6` | idempotent |
+| `WLR-7` | NARROWING: `path_type` and `fan_speed` on the same room are untouched |
+| `WLR-8` | an unjudgeable target defers without burning the key (the MIG-11 rule, inherited) |
+| `WLR-9` | the mapping is asserted against the INDEX, not a transcript, so it cannot agree with a hand-written table that drifted |
+| `WLR-10` | a SHORTER device ladder clamps down, never up — under-mop over wet-mop, the asymmetry `mixed_mode_water_policy: "safest"` already rests on |
+| `WLR-11` | identical ladders declare no aliases, so the S6 is inert |
+
+All eleven are ablation-verified. `WLR-2` needed a red input of its own, and finding it
+is the useful part: because it asserts the *unwanted* outcome, no alias ablation can
+redden it — mapping every rung to the top, to the bottom, or leaving short-ladder rungs
+unmapped all leave WLR-2 green. Removing the default-profile fallback is what reddens
+it, which is the honest statement of what it pins: not "aliases work" but "this is where
+the value goes when they do not".
+
+**The two repairs share one implementation.** `plan_residue_repair` and
+`_migrate_residue` are parameterized by (key, fields); `path_type` and `water_level` are
+instances. A second hand-written copy is how the two would drift on the change-record
+shape, and the ablation harness runs both suites together for that reason — restoring
+the unconditional latch reddens `PTR-8` and `WLR-8` together.
+
 **PTR-5 needed a second attempt to bite.** Written first against a Roborock room
 carrying `clean_intensity`, it passed with the reset-only filter deliberately removed —
 because the `fields` filter already stopped `clean_intensity` from being iterated at
