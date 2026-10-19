@@ -186,6 +186,57 @@ VOCABULARY_FIELDS: tuple[str, ...] = (
 )
 
 
+#: ONE PHYSICAL AXIS, MORE THAN ONE BRAND NAME. The key on the left is the CANONICAL
+#: one — the name the card asks for and the only name any card surface should contain.
+#: The tuple is the brands' own field names, most-canonical first; the first one a brand
+#: actually declares wins.
+#:
+#: This exists because of ``path_type``. Per ``docs/dev/24-roborock-adapter.md`` §8 the
+#: name was invented in this project's INITIAL RELEASE, three weeks before adapters or a
+#: second brand existed, as a duplicate of an axis already carried; Roborock later
+#: adopted the field that was already canonical, which is why it now reads as Roborock's.
+#: It is neither brand's word, and the giveaway is in the option lists — one value
+#: appears in BOTH brands' options for the axis, which no genuinely brand-native
+#: vocabulary would do. Eufy then deliberately SUBTRACTED it from every profile.
+#:
+#: The cost of that history was issue #71: Roborock declares ``path_type_options`` and
+#: every card surface reads ``clean_intensity_options``, so the picker has never rendered
+#: for that brand on any install. Resolving here rather than teaching each surface a
+#: second key keeps the canonical name as the card's whole interface — a third brand with
+#: a third word costs ONE TUPLE ENTRY and no card change.
+#:
+#: ⚠ ADDING A ROW IS NOT FREE. The resolved field is what the card WRITES, so it must be
+#: a field the brand's profiles declare or ``_finalize_room_update`` strips it on the next
+#: save, and it must be accepted by the room-update service or the wrapper drops it
+#: silently. Both are real: they are how the obvious one-line version of #71's fix ships
+#: a control that saves and then loses the value.
+AXIS_FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "clean_intensity": ("clean_intensity", "path_type"),
+}
+
+
+def resolve_axis(
+    vocabulary: dict[str, Any] | None, axis: str
+) -> tuple[str, list[dict[str, Any]]]:
+    """``(stored field name, options)`` for ``axis`` under THIS brand's own naming.
+
+    Returns the canonical field and an empty list when the brand declares none of the
+    candidates — "cannot offer this axis", which is a different statement from "this
+    brand has no such axis" (that one is ``declared_profile_fields``). A caller that
+    gets ``[]`` renders no picker, exactly as today.
+
+    Order within the tuple is the tie-break and it matters: a brand that somehow
+    declared both keys gets the canonical one, so the duplicate name can be retired
+    later by simply deleting its profiles' copy, with no further code change.
+    """
+    vocab = vocabulary or {}
+    for field in AXIS_FIELD_CANDIDATES.get(axis, (axis,)):
+        options = vocab.get(f"{field}_options")
+        if isinstance(options, list) and options:
+            return field, options
+    return axis, []
+
+
 def declared_profile_fields(catalog: dict[str, Any] | None) -> set[str]:
     """Every field name appearing in any profile THIS brand declares.
 

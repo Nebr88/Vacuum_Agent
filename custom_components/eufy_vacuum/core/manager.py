@@ -41,7 +41,7 @@
 # ---------------------------------------------------------------------------
 
 from __future__ import annotations
-from ..profiles.room_profiles import may_wet_floor
+from ..profiles.room_profiles import may_wet_floor, resolve_axis
 
 import asyncio
 from datetime import datetime
@@ -2034,7 +2034,21 @@ class EufyVacuumManager:
             updates["water_level"] = str(water_level)
 
         if clean_intensity is not None:
-            updates["clean_intensity"] = str(clean_intensity)
+            # THE CARD SPEAKS THE CANONICAL NAME; THE BRAND'S OWN FIELD IS WHAT IS
+            # STORED. Eufy and Dreame call this axis `clean_intensity`; Roborock kept
+            # `path_type`. Writing the canonical key on a Roborock would be silently
+            # DELETED by `_finalize_room_update` on the very same save — it strips any
+            # VOCABULARY_FIELD the brand's profiles do not declare — so the picker would
+            # save and lose the value with no error. Resolving here is what makes one
+            # service parameter serve brands that spell the axis differently, and it is
+            # why the card needed no new parameter: `path_type` could not have travelled
+            # anyway, because the service schema is PREVENT_EXTRA and would reject the
+            # whole call.
+            _ci_field, _ = resolve_axis(
+                (_get_adapter_config(vacuum_entity_id) or {}).get("vocabulary"),
+                "clean_intensity",
+            )
+            updates[_ci_field] = str(clean_intensity)
 
         if clean_passes is not None:
             updates["clean_passes"] = int(clean_passes)
@@ -5866,7 +5880,25 @@ class EufyVacuumManager:
         # declares rather than probing upstream select entities, which
         # only exist on some brands.
         _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
-        adapter_vocabulary = _adapter_cfg.get("vocabulary", {}) or {}
+        adapter_vocabulary = dict(_adapter_cfg.get("vocabulary", {}) or {})
+        # RESOLVE THE PASS-DENSITY AXIS INTO THE SNAPSHOT'S COPY (issue #71).
+        #
+        # The snapshot ships the adapter's vocabulary WHOLESALE, and the card asks for
+        # it by canonical name — `state/learning.js::adapterOptionsFor` does
+        # `vocab[`${role}_options`]`. Wholesale is therefore exactly why it does NOT
+        # resolve: Roborock declares `path_type_options`, so asking for
+        # `clean_intensity_options` returned undefined and FOUR snapshot-reading
+        # surfaces rendered nothing — the room-editor modal, the rule editor, the
+        # review matcher and the external-jobs wizard. The two cards that read the room
+        # SWITCH attributes were fine, which is what made this look already-solved.
+        #
+        # A COPY, and the adapter's own config is left untouched: two shipped tests
+        # assert `clean_intensity_options` is absent from Roborock's declared block
+        # (test_adapter.py [:343], [:556]), and that remains true — the brand still
+        # declares its own word. This resolves for the card only.
+        _, _ci_options = resolve_axis(adapter_vocabulary, "clean_intensity")
+        if _ci_options:
+            adapter_vocabulary.setdefault("clean_intensity_options", _ci_options)
 
         # Per-room editor capability hints surfaced to the card:
         # - max_clean_passes: upper bound for the passes chips (the dispatch

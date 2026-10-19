@@ -11,6 +11,7 @@ from homeassistant.helpers.entity import Entity
 from .adapters.registry import get_adapter_config
 from .const import DOMAIN
 from .entity_helpers import build_vacuum_device_info, make_room_unique_id
+from .profiles.room_profiles import resolve_axis
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -314,6 +315,9 @@ class EufyVacuumRoomEntity(Entity):
         if not isinstance(history_entry, dict):
             history_entry = {}
 
+        _clean_intensity_field, _clean_intensity_options = resolve_axis(
+            _adapter_vocab, "clean_intensity"
+        )
         return {
             "vacuum_entity_id": self._vacuum_entity_id,
             "map_id": self._map_id,
@@ -329,7 +333,12 @@ class EufyVacuumRoomEntity(Entity):
             "clean_mode": effective.get("clean_mode"),
             "fan_speed": effective.get("fan_speed"),
             "water_level": effective.get("water_level"),
-            "clean_intensity": effective.get("clean_intensity"),
+            # THE VALUE, UNDER THE CANONICAL NAME. The room stores the BRAND's field
+            # (`path_type` on Roborock), and the card's chips compare against
+            # `attrs.clean_intensity` — so reading only the canonical key left every
+            # Roborock chip unselected and the rooms-view path chip hidden by its
+            # falsy branch, never the "is this the default" branch anyone would look at.
+            "clean_intensity": effective.get(_clean_intensity_field),
             "clean_passes": effective.get("default_clean_passes", room.get("clean_passes", 1)),
             "edge_mopping": effective.get("default_edge_mopping", room.get("edge_mopping", False)),
             "carpet": str(room.get("floor_type", "")).startswith("carpet"),
@@ -349,7 +358,17 @@ class EufyVacuumRoomEntity(Entity):
             "clean_mode_options": _adapter_vocab.get("clean_mode_options") or [],
             "fan_speed_options": _adapter_vocab.get("fan_speed_options") or [],
             "water_level_options": _adapter_vocab.get("water_level_options") or [],
-            "clean_intensity_options": _adapter_vocab.get("clean_intensity_options") or [],
+            # THE PASS-DENSITY AXIS IS RESOLVED, NOT READ BY NAME (issue #71). Eufy and
+            # Dreame declare it as `clean_intensity`; Roborock kept `path_type`, a name
+            # this project invented before adapters existed. The card asks for the
+            # CANONICAL key and gets whichever list the brand actually declared, so no
+            # card surface has to learn a second name. The card does not need to know
+            # WHICH field it is either: it keeps sending `clean_intensity` and
+            # `core/manager.update_room_fields` resolves the brand's own field on the
+            # way in. Publishing the resolved name here as well was drafted and
+            # dropped — nothing read it, and an unread declaration is the very shape
+            # (RNQ433CB) this change exists to remove.
+            "clean_intensity_options": _clean_intensity_options,
             # Continuous water axis (Dreame wetness 1..32) — a brand declares this OR
             # water_level_options; the card branches slider-vs-chips. None when enum-shaped.
             "water_level_range": _adapter_vocab.get("water_level_range"),

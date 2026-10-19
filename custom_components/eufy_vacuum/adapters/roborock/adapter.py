@@ -62,6 +62,7 @@ from . import vocabulary
 from .vocabulary import (
     build_option_list,
     build_positional_aliases,
+    build_route_ladder,
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
     CANCEL_DETECTION_STATES,
@@ -545,6 +546,21 @@ def register_roborock_adapter_for_vacuum(
     )
     _route_axis = bool(profile.get("has_path_control", False) or _route_usable)
 
+    # THE ROUTE LADDER, read off the same select (issue #71). Options come from the
+    # device where it published any; the declared list only when it did not. Unlike
+    # water, options and rank are NOT one sequence — see `build_route_ladder` for why
+    # an unseen rung is offered but not ranked.
+    _route_values = (
+        [str(o) for o in (_route_state.attributes or {}).get("options") or []]
+        if _route_state is not None
+        else []
+    )
+    _route_options, _route_rank = build_route_ladder(_route_values)
+    if not _route_options:
+        _route_options, _route_rank = build_route_ladder(
+            [str(o["value"]) for o in PATH_TYPE_OPTIONS]
+        )
+
     # THE ROUTE PRE-CALL. Same shape as the water one above and for the same reason: the
     # select is device-GLOBAL, so a batch cannot carry two depths at once. Per-room intent
     # survives through PHASING — `phase_runner._dispatch_active_phase` re-runs global
@@ -580,12 +596,32 @@ def register_roborock_adapter_for_vacuum(
     # list the card reads is what makes the setting visible under EITHER answer, and this
     # push re-arms itself at that moment. [RT-10] pins the suppression, [RT-11] the
     # re-arming, so neither can be satisfied by deleting the feature.
-    _route_user_visible = bool(getattr(vocabulary, "CLEAN_INTENSITY_OPTIONS", None))
+    # ⚠ THIS TESTED A MODULE ATTRIBUTE THAT DOES NOT EXIST, AND COULD NEVER BECOME TRUE.
+    # It was `bool(getattr(vocabulary, "CLEAN_INTENSITY_OPTIONS", None))` — the roborock
+    # vocabulary MODULE, which defines no such name (and [RT-11] only passed because
+    # monkeypatch was given `raising=False`). So it was a PROXY for "the card can show
+    # this axis", and the proxy and the reality could drift apart in both directions:
+    # the axis became card-visible without the constant appearing, and defining the
+    # constant would have armed the push even if no list ever reached the card.
+    #
+    # It now asks the real question LOCALLY: did this adapter declare a non-empty option
+    # list for the axis? Core resolves the canonical `clean_intensity` across the brands'
+    # own field names and `path_type` is one of its candidates, so a non-empty list here
+    # IS a rendered picker — and the moment it renders, this push re-arms, exactly as
+    # [RT-10]'s own text promised.
+    #
+    # ⚠ NOT asked by calling core's resolver: [ISO-1] keeps a brand package inside
+    # `adapters/`, and reaching `profiles.room_profiles` to ask would be an architecture
+    # change, not a bug fix. The coupling that replaces the import — "the field this
+    # brand declares is one core resolves" — is pinned by a test rather than assumed,
+    # because a silent drop from core's candidate tuple would leave this gate armed
+    # while no picker renders, which is the failure it exists to prevent.
+    _route_user_visible = bool(_route_options)
     if _route_axis and _route_user_visible:
         mop_pre_calls.append(
             {
                 "field": "path_type",
-                "rank": ["standard", "deep", "deep_plus"],
+                "rank": _route_rank,
                 "service": {
                     "domain": DOMAIN_SELECT,
                     "service": "select_option",
@@ -858,7 +894,7 @@ def register_roborock_adapter_for_vacuum(
             # un-resettable (no options) — the exact gap that left it on every room.
             # Capability gating decides whether the axis is OFFERED; this decides
             # whether a value is VALID, and those are different questions.
-            "path_type_options": PATH_TYPE_OPTIONS,
+            "path_type_options": _route_options,
             **(
                 {
                     "clean_mode_options": CLEAN_MODE_OPTIONS,      # vacuum / mop / vacuum_mop

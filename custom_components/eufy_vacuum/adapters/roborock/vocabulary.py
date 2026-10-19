@@ -645,3 +645,41 @@ def build_positional_aliases(declared, live) -> dict[str, str]:
             continue
         aliases[token.lower()] = live_values[min(index, len(live_values) - 1)]
     return aliases
+
+
+#: ASCENDING PASS DENSITY. Read order is NOT this order, and that is the whole reason
+#: this constant exists: the Saros 10 publishes `standard, deep, deep_plus, fast,
+#: smart_mode, custom`, where `fast` — the LEAST dense pass — is listed fourth. Ranking
+#: the route by read order would make `fast` outrank `deep_plus` in the max-wins resolve
+#: and a batch asking for the deepest scrub would get the shallowest.
+#:
+#: Water escapes this because its device list IS ascending (off/mild/standard/intense/
+#: extreme), and fan escapes it by having no rank at all. Route has a rank and an
+#: unordered source, so it needs the ladder written down.
+PATH_TYPE_RANK_ORDER: tuple[str, ...] = ("fast", "standard", "deep", "deep_plus")
+
+
+def build_route_ladder(values) -> tuple[list[dict], list[str]]:
+    """``(options, rank)`` for the mop-route axis from the device's own option list.
+
+    ⚠ THESE TWO ARE DELIBERATELY NOT THE SAME SEQUENCE, unlike water's. A rung this
+    adapter has never seen is OFFERED (it is a real thing the device can do and the
+    owner may want it) but NOT RANKED, because we do not know where it sits on the
+    ladder and guessing is how `fast` would have outranked `deep_plus`. An unranked
+    stored value makes the max-wins resolve find nothing and leave the device alone —
+    `dispatch/manager.py` `continue`s on `best_index < 0` — which is the honest answer:
+    we were told nothing we can order.
+
+    That asymmetry is safe HERE and nowhere else on this brand. Over-scrubbing costs
+    time; the water axis has `mixed_mode_water_policy: "safest"` precisely because
+    over-watering costs a floor, so water keeps picker and rank identical.
+
+    Options are returned in LADDER order with unknown rungs appended, so the picker
+    reads weakest-to-strongest rather than in the device's publication order.
+    """
+    options = build_option_list(values)
+    by_value = {str(o["value"]): o for o in options}
+    ordered = [by_value.pop(v) for v in PATH_TYPE_RANK_ORDER if v in by_value]
+    ordered.extend(by_value.values())  # rungs we have no position for, device order
+    rank = [str(o["value"]) for o in ordered if str(o["value"]) in PATH_TYPE_RANK_ORDER]
+    return ordered, rank

@@ -159,6 +159,71 @@ _VOCABULARY_FIELDS)` — lets a caller name `name` or `room_id`, which sit in th
 dict as the settings and appear in no option list. Every room would be stripped of its
 name. The filter is an intersection with `_VOCABULARY_FIELDS` for that reason.
 
+### One axis, two brand names — `test_axis_resolution.py` (added 2026-10-19)
+
+Eufy and Dreame declare the pass-density axis as `clean_intensity`. Roborock declares
+the same physical property as `path_type` — a name invented in this project's INITIAL
+RELEASE, three weeks before adapters or a second brand existed, as a duplicate of an
+axis already carried (`docs/dev/24-roborock-adapter.md` §8). Every card surface reads
+`clean_intensity_options`; `path_type_options` appeared **zero times in `src/`**. So
+the Roborock picker had never rendered on any install since the axis was added
+(issue #71 §B).
+
+`profiles/room_profiles.py::resolve_axis` + `AXIS_FIELD_CANDIDATES` resolve the
+canonical name across the brands' own field names, server-side. The canonical name
+stays the card's entire interface: a third brand with a third word costs ONE TUPLE
+ENTRY and no card change.
+
+**The card was never taught a second key, and that was the finding.** A census of all
+26 card sites found the key hardcoded in the card's INTERNAL MODEL — the service
+payload (`actions/rooms.js`) and the draft shape (`cards/_shared.js`) — not merely in
+`data-field` attributes. And the save path settles it: `_UPDATE_ROOM_FIELDS_SCHEMA` is
+a bare `vol.Schema` with no `extra=`, so PREVENT_EXTRA is in force and a `path_type`
+key would raise *extra keys not allowed* and **kill the whole call**, taking
+`clean_mode`, `fan_speed` and colour with it. So the card keeps speaking the canonical
+name everywhere and the backend translates at both boundaries:
+
+* **in** — `core/manager.update_room_fields` resolves and writes the brand's own field;
+* **out** — `room_entities` exposes the stored value under the canonical name, and the
+  dashboard snapshot resolves the option list into its own copy.
+
+| id | what it holds |
+|---|---|
+| `AX-1` | the canonical key resolves to itself — Eufy and Dreame are unchanged |
+| `AX-2` | a brand's own name resolves to THAT field; the returned FIELD is the load-bearing half, because returning options alone renders a picker that saves to a field `_finalize_room_update` then strips |
+| `AX-3` | the canonical name wins when both are declared — the retirement path |
+| `AX-4`/`AX-5` | neither declared, or an empty/malformed list, yields the canonical field and NO options: "cannot offer", deliberately not "has no such axis" (the MIG-5 distinction) |
+| `AX-6` | an unlisted axis resolves to itself, so the helper is total |
+| `AX-7` | every candidate is a real `VOCABULARY_FIELD` and the canonical name is first — a typo would resolve to a key nothing writes |
+
+`test_axis_field_translation.py` covers the two HOPS either side of the service
+boundary, and it exists because ablation found nothing covering either. Reverting the
+write to the canonical key, or the read to the canonical key, left the entire suite
+green — 5102 tests — while a Roborock picker would save and silently lose the value and
+its chips would never show as selected.
+
+| id | what it holds |
+|---|---|
+| `AXT-1` | a brand word is stored under THAT brand's field, and the canonical key is **not** written beside it (two fields for one axis is a silent replica pair) |
+| `AXT-2` | a canonical-word brand is unchanged — this must be invisible to two of three brands |
+| `AXT-3` | the value survives the round trip: `_finalize_room_update` silently DELETES any `VOCABULARY_FIELD` the brand's profiles do not declare, so a canonical write would be removed by the very save that made it and the picker would appear to work exactly once |
+| `AXT-4`/`AXT-5` | the SWITCH ENTITY surfaces the stored brand field under the canonical name |
+
+**`AXT-4` was wrong on its first attempt, and ablation is what said so.** It originally
+asserted `resolve_axis` and the stored dict — the two pieces either side of the hop —
+and stayed green when `room_entities` was reverted to read the canonical key, because
+it never touched the entity. Testing the pieces either side of a hop is not testing the
+hop. It now builds the entity and reads `extra_state_attributes`.
+
+**Two things the snapshot taught.** It ships `adapter_vocabulary` WHOLESALE, which
+looked like it meant "already resolved" and means the opposite: `adapterOptionsFor`
+does `vocab[role + "_options"]`, so four snapshot-reading surfaces (room-editor
+modal, rule editor, review matcher, external-jobs wizard) rendered nothing while the
+two switch-attribute cards were fine. And the resolution is written into a COPY —
+`test_adapter.py` [:343] and [:556] assert `clean_intensity_options` is absent from
+Roborock's declared block, and that stays true, because the brand still declares its
+own word.
+
 ### The `water_level` residue — the same shape, with a sharper edge (added 2026-10-19)
 
 `adapters/roborock` now READS its water ladder off `select.<obj>_mop_intensity` instead

@@ -1677,33 +1677,39 @@ def _route_pre_call(cfg):
 
 
 def test_rt10_route_is_not_pushed_while_no_user_surface_exists(monkeypatch, hass):
-    """[RT-10] ISSUE #71 — we were setting a route the user could not see or change.
+    """[RT-10] ISSUE #71 — never set a route the user cannot see or change.
 
-    #66 made the route axis live: `_route_axis` is true whenever the device publishes
-    `select.<obj>_mop_mode`, and the pre-call then pushes each group's `path_type` before
-    dispatch. The other half never shipped. The axis is declared as `path_type_options`
-    and every card surface reads `clean_intensity_options`, so the picker has never
-    rendered for any Roborock; there is no room-switch option key, no service parameter
-    and no chip. `path_type` is therefore ALWAYS the untouched default.
+    #66 made the axis live: `_route_axis` is true whenever the device publishes
+    `select.<obj>_mop_mode`, and the pre-call then pushes each group's `path_type`
+    before dispatch. The other half never shipped, so on a Saros 10 we pushed
+    `mop_mode = standard` before every clean, overwriting the owner's app setting from
+    a value they were never shown. "Route is not offered" and "route is silently set"
+    were one defect.
 
-    So on a Saros 10 the integration pushed `mop_mode = standard` before every clean,
-    overwriting whatever route the owner had set in the Roborock app — from a value they
-    were never shown. "Route is not offered" and "route is silently set" were one defect.
+    THIS TEST'S SCENARIO CHANGED 2026-10-19 AND ITS ASSERTION FLIPPED — for the reason
+    its own text predicted. It used to pin "a stock Roborock pushes nothing", because
+    `path_type_options` reached no card surface. Core now RESOLVES the canonical
+    `clean_intensity` across the brands' own field names, so Roborock's declaration
+    does render a picker, and the old text said precisely that this would re-arm the
+    push. [RT-11] is now the stock case; this one keeps the guard pointed at what is
+    left of its job: an axis with NO declared vocabulary from either source.
 
-    THE GATE IS THE SURFACE, NOT A HARD FALSE, and that is deliberate: this does not
-    pre-judge whether Roborock should re-declare the axis under the canonical name or the
-    card should learn a second key. Whichever way that is settled, declaring the options
-    the card reads is what makes the setting user-visible — and this pre-call turns itself
-    back on at the same moment. [RT-11] is the other arm.
+    The gate must stay a SURFACE test and not a hard false, or a model shipping without
+    that vocabulary would be pushed a value into a picker that cannot exist.
 
     ABLATION: restore the unconditional `if _route_axis:` and this goes red.
     """
     clear_registry()
     _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a147")
-    hass.states.async_set(
-        "select.ivy_mop_mode", "standard",
-        {"options": ["standard", "deep", "deep_plus"]},
-    )
+    # No vocabulary from EITHER source: the device publishes the select but lists no
+    # options, and the brand declares no list to fall back to.
+    #
+    # Patched on the ADAPTER module, not `rbv`. adapter.py does
+    # `from .vocabulary import PATH_TYPE_OPTIONS`, so it holds its OWN binding and
+    # patching the vocabulary module leaves the fallback reading the real list — which
+    # is how the first draft of this test passed a config it had not actually changed.
+    monkeypatch.setattr(rb, "PATH_TYPE_OPTIONS", [], raising=True)
+    hass.states.async_set("select.ivy_mop_mode", "standard", {"options": []})
     hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
     rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
     cfg = get_adapter_config(_RVAC)
@@ -1712,26 +1718,29 @@ def test_rt10_route_is_not_pushed_while_no_user_surface_exists(monkeypatch, hass
         "the capability is unchanged — the device does publish the select"
     )
     assert _route_pre_call(cfg) is None, (
-        "pushed a route the user has no way to choose, overwriting their app setting"
+        "pushed a route into an axis with no option list, so no picker can exist"
     )
 
 
 def test_rt11_route_is_pushed_once_the_axis_is_user_visible(monkeypatch, hass):
-    """[RT-11] The other arm: the gate is the user surface, not a disablement.
+    """[RT-11] The other arm, and now the STOCK case: a shipped Roborock.
 
-    Without this, [RT-10] is satisfied by deleting the feature, and the day someone
-    settles the naming question nothing would tell them the pre-call should come back.
-    Declaring the option list the card actually reads is what makes the axis visible, and
-    that is what re-arms the push.
+    Without this, [RT-10] is satisfied by deleting the feature. The gate is the user
+    surface, so declaring the option list the card reads is what re-arms the push — and
+    since core resolves `clean_intensity` across `("clean_intensity", "path_type")`,
+    Roborock's own declaration IS that list. No monkeypatch: this is the config the
+    adapter builds on a real device.
+
+    ⚠ was: a monkeypatch of `rb.vocabulary.CLEAN_INTENSITY_OPTIONS` with
+    `raising=False` — which only ever worked because that attribute is ABSENT from the
+    module. The gate it exercised tested a name nothing defines, so it could never have
+    become true on a real install, and the test passed while proving nothing about one.
+    That is the defect this pair now pins.
 
     ABLATION: hard-code the gate to False and this goes red while [RT-10] stays green.
     """
     clear_registry()
     _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a147")
-    monkeypatch.setattr(
-        rb.vocabulary, "CLEAN_INTENSITY_OPTIONS",
-        [{"value": "standard", "label": "Standard"}], raising=False,
-    )
     hass.states.async_set(
         "select.ivy_mop_mode", "standard",
         {"options": ["standard", "deep", "deep_plus"]},
@@ -1741,5 +1750,105 @@ def test_rt11_route_is_pushed_once_the_axis_is_user_visible(monkeypatch, hass):
     cfg = get_adapter_config(_RVAC)
 
     pre = _route_pre_call(cfg)
-    assert pre is not None, "a visible axis must be pushed again"
+    assert pre is not None, "the picker renders for this brand now, so apply the route"
     assert pre["service"]["target_role"] == "mop_mode"
+    assert pre["rank"] == ["standard", "deep", "deep_plus"]
+
+
+def test_rt12_the_field_this_brand_declares_is_one_core_resolves(monkeypatch, hass):
+    """[RT-12] THE COUPLING THAT REPLACED AN IMPORT.
+
+    The gate asks a LOCAL question — "did I declare a non-empty option list?" — and
+    infers a rendered picker from it. That inference holds only while core's resolver
+    still accepts this brand's field name. [ISO-1] forbids a brand package from
+    importing `profiles.room_profiles` to ask directly, so the coupling is pinned here
+    rather than assumed.
+
+    Drop `path_type` from `AXIS_FIELD_CANDIDATES` and this goes red — where otherwise
+    the gate would stay armed while the picker silently stopped rendering, which is the
+    exact failure the gate exists to prevent.
+    """
+    from custom_components.eufy_vacuum.profiles.room_profiles import resolve_axis
+
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a147")
+    hass.states.async_set(
+        "select.ivy_mop_mode", "standard",
+        {"options": ["standard", "deep", "deep_plus"]},
+    )
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    vocab = get_adapter_config(_RVAC)["vocabulary"]
+
+    field, options = resolve_axis(vocab, "clean_intensity")
+
+    assert field == "path_type", "core no longer resolves this brand's own field name"
+    assert options == vocab["path_type_options"], "the picker would render a stale list"
+
+
+def test_rt13_the_saros_route_ladder_is_ordered_not_published_order(monkeypatch, hass):
+    """[RT-13] THE RANK TRAP, with the reporter's own tokens (issue #71).
+
+    A Saros 10 publishes its mop-route options as
+    `standard, deep, deep_plus, fast, smart_mode, custom` — where `fast`, the LEAST
+    dense pass, is listed FOURTH. The route pre-call resolves max-wins, so ranking by
+    publication order would make `fast` outrank `deep_plus` and a batch asking for the
+    deepest scrub would get the shallowest.
+
+    Water escapes this because its device list IS ascending; fan escapes it by having
+    no rank at all. Route has a rank AND an unordered source, so the ladder is written
+    down in `PATH_TYPE_RANK_ORDER` and the device's list is sorted onto it.
+
+    `smart_mode` and `custom` are dropped from both — real device options and real
+    answers, but not positions on a ladder.
+
+    ABLATION: rank by read order and this goes red while [RT-11] stays green, because
+    [RT-11]'s device publishes no `fast` and is already in ladder order — which is
+    exactly how this trap would have shipped unnoticed.
+    """
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a147")
+    hass.states.async_set(
+        "select.ivy_mop_mode", "standard",
+        {"options": ["standard", "deep", "deep_plus", "fast", "smart_mode", "custom"]},
+    )
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
+
+    values = [o["value"] for o in cfg["vocabulary"]["path_type_options"]]
+    assert values == ["fast", "standard", "deep", "deep_plus"], (
+        "the picker must read weakest-to-strongest, not in publication order"
+    )
+    assert _route_pre_call(cfg)["rank"] == ["fast", "standard", "deep", "deep_plus"], (
+        "fast outranking deep_plus would turn the deepest scrub into the shallowest"
+    )
+
+
+def test_rt14_an_unknown_rung_is_offered_but_not_ranked(monkeypatch, hass):
+    """[RT-14] The asymmetry route is allowed and water is NOT.
+
+    A rung this adapter has never seen is a real thing the device can do, so it is
+    OFFERED. It is not RANKED, because we do not know where it sits and guessing is
+    precisely how `fast` would have outranked `deep_plus`. An unranked stored value
+    makes the max-wins resolve find nothing and leave the device alone, which is the
+    honest answer: we were told nothing we can order.
+
+    Safe HERE and nowhere else on this brand — over-scrubbing costs time, while the
+    water axis carries `mixed_mode_water_policy: "safest"` because over-watering costs
+    a floor. Water therefore keeps picker and rank IDENTICAL; this one deliberately
+    does not, and the difference is the point.
+    """
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a147")
+    hass.states.async_set(
+        "select.ivy_mop_mode", "standard",
+        {"options": ["standard", "deep", "zz_new_rung"]},
+    )
+    hass.states.async_set(_RVAC, "docked", {"supported_features": 30524})
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    cfg = get_adapter_config(_RVAC)
+
+    values = [o["value"] for o in cfg["vocabulary"]["path_type_options"]]
+    assert values == ["standard", "deep", "zz_new_rung"], "an unseen rung is offered"
+    assert _route_pre_call(cfg)["rank"] == ["standard", "deep"], "but never ranked"
