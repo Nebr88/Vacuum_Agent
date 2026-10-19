@@ -358,6 +358,32 @@ def register_roborock_adapter_for_vacuum(
         [str(o["value"]) for o in WATER_LEVEL_OPTIONS], _water_rank,
     )
 
+    # SUCTION, READ THE SAME WAY — and simpler, because nothing RANKS it.
+    #
+    # `fan_speed` is a `per_room_live_settings` entry filtered by `options_key`, not a
+    # ranked global pre-call, so there is no max-wins or safest-wins resolve to order.
+    # That matters: the Saros publishes `quiet, balanced, turbo, max, max_plus,
+    # off_raise_main_brush, …`, where the WEAKEST rung is listed sixth. Rank by read
+    # order and the raised brush becomes the strongest suction — which is exactly why
+    # `build_option_list` carries that warning. Here the order is CHIP DISPLAY ORDER
+    # only, and the device's own order is the right one: it is what the owner already
+    # sees in the Roborock integration's fan-speed menu, which is the surface they
+    # compared ours against when they reported this.
+    #
+    # Issue #71's third complaint: "there is a MAX+ suction power mode beyond MAX. MAX+
+    # is currently missing." It was missing because FAN_SPEED_OPTIONS is a transcript of
+    # the maintainer's S6 — which has `gentle` and no `max_plus` — declared for every
+    # Roborock. The Saros has neither `gentle` nor our spelling of that slot: it puts
+    # `off_raise_main_brush` there. Both halves of that mismatch disappear by asking the
+    # device, and the `options_key` filter then stops skipping the values it can accept.
+    _vacuum_state = hass.states.get(vid)
+    _live_fan_values = (
+        list((_vacuum_state.attributes or {}).get("fan_speed_list") or [])
+        if _vacuum_state is not None
+        else []
+    )
+    _fan_options = build_option_list(_live_fan_values) or list(FAN_SPEED_OPTIONS)
+
     mop_pre_calls: list[dict] = []
     if mop_settable:
         mop_pre_calls = [
@@ -819,7 +845,10 @@ def register_roborock_adapter_for_vacuum(
             # A settable-mop model (S7/S8) exposes clean_mode (vacuum vs mop — the logical
             # switch that gates water + drives the mop pre-call; it never hits the wire)
             # and water_level (mop intensity), honored via the mop global_pre_calls below.
-            "fan_speed_options": FAN_SPEED_OPTIONS,
+            # Read off `vacuum.<obj>`'s own `fan_speed_list`; the declared transcript
+            # only when the entity is not there yet. Unranked, so read order is
+            # display order — see `_fan_options` above.
+            "fan_speed_options": _fan_options,
             # DECLARED UNCONDITIONALLY, even though no catalogued model sets
             # has_path_control yet. This is the option list for path_type, the axis
             # Roborock keeps and Eufy does not, and declaring it is what makes a stored

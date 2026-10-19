@@ -278,6 +278,40 @@ correctly cannot detect a label ablation (humanising `off/low/medium/high` yield
 identical declared labels, so nothing changes for that device), and `LW-8`, which is the
 test that covers it.
 
+### `roborock/test_live_fan_ladder.py` — suction read off the vacuum entity (#71)
+
+6 test functions, added 2026-10-19. The third complaint on #71 was *"there is a MAX+
+suction power mode beyond MAX. MAX+ is currently missing."* It was missing because
+`FAN_SPEED_OPTIONS` is a transcript of the maintainer's S6 — which has `gentle` and no
+`max_plus` — declared for every Roborock. The reporter's Saros publishes `quiet,
+balanced, turbo, max, max_plus, off_raise_main_brush, smart_mode, custom`: neither
+`gentle` nor our spelling of that slot. Both halves of the mismatch disappear by reading
+`vacuum.<obj>`'s own `fan_speed_list`.
+
+**This is the EASY half of the live-vocabulary work, and the reason is structural.**
+`fan_speed` is a `per_room_live_settings` entry filtered by `options_key`, not a ranked
+global pre-call. Nothing orders it, so the trap that makes read-order-as-rank unsafe
+simply does not apply here — the order is chip display order, and the device's own order
+is the one the owner already sees in the Roborock integration's fan menu, which is the
+surface they compared ours against.
+
+| id | what it holds |
+| --- | --- |
+| `FLR-1` | the Saros list becomes the picker — `max_plus` in, `gentle` out, non-rungs dropped |
+| `FLR-2` | the no-regression guard: a device publishing our declared five yields those five |
+| `FLR-3` | no entity / no attribute / only non-rungs → the declared list, never `[]` |
+| `FLR-4` | the device's own ORDER is preserved, not sorted — it is also the only honest order, since we cannot know where an unseen rung belongs |
+| `FLR-5` | **no rank is introduced** — asserted as an ABSENCE, because adding one is the single way to get this axis wrong |
+| `FLR-6` | an unknown rung is humanised; a declared label still wins |
+
+**`FLR-5` is the one to read.** `off_raise_main_brush` is the weakest rung and the device
+lists it *sixth*. Any max-wins or safest-wins resolve built on read order would make the
+raised brush the strongest suction. Fan is safe only because it has no rank at all, so
+the test asserts the absence — that is the property a future change would quietly take
+away while every other test stayed green.
+
+All six are ablation-verified, including adding a rank to the per-room entry.
+
 ### `roborock/test_roborock_upkeep_keys.py` — Roborock on the shared regime → key guide
 
 7 test functions, added 2026-09-12 with the Roborock port. Replaces the three authored guide
