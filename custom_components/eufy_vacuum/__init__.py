@@ -33,7 +33,10 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.device_registry import DeviceEntry
-from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_state_change_event,
+)
 from homeassistant.helpers.start import async_at_started
 
 from ._frontend_url import cards_module_url, panel_js_url
@@ -545,12 +548,44 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         _before = deepcopy(
                             (manager.data.get("capabilities") or {}).get(_vid)
                         )
+                        # The VOCABULARY can change here even when capabilities do not:
+                        # the adapter reads its option lists off the provider's entities
+                        # (issue #71), and at setup time those had published nothing.
+                        _vocab_before = deepcopy(
+                            (get_adapter_config(_vid) or {}).get("vocabulary")
+                        )
                         register_brand_adapter(hass, _vid, data=_brand_data)
                         _after = manager.refresh_vacuum_capabilities(
                             vacuum_entity_id=_vid
                         )
                         if _before != _after:
                             healed.append(_vid)
+
+                        # A CORRECTED CONFIG IS NOT A CORRECTED CARD, and this is the
+                        # whole defect the live box found. Room entities compute their
+                        # attributes from the adapter config, but only when they WRITE
+                        # state — and they had already written, ~15 seconds into the
+                        # boot, from the DECLARED lists. The re-registration above then
+                        # fixed the config and nothing asked them to look again, so the
+                        # config held the device's own suction list while every room
+                        # switch still served the fallback. The feature was correct and
+                        # invisible. The switch platform already refreshes on this
+                        # callback; it simply was never fired for this reason.
+                        if _vocab_before != (get_adapter_config(_vid) or {}).get(
+                            "vocabulary"
+                        ):
+                            for _map_id in list(
+                                ((manager.data.get("maps") or {}).get(_vid) or {})
+                            ):
+                                manager._notify_rooms_updated(  # noqa: SLF001
+                                    vacuum_entity_id=_vid, map_id=str(_map_id)
+                                )
+                            _LOGGER.info(
+                                "eufy_vacuum: %s's vocabulary was read off the device "
+                                "after startup — the lists declared at setup were a "
+                                "fallback, and the room entities have been refreshed",
+                                _vid,
+                            )
                     except Exception:  # pragma: no cover - never block startup
                         _LOGGER.exception(
                             "eufy_vacuum: post-start re-detection failed for %s; "
@@ -564,6 +599,102 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         ", ".join(healed),
                     )
                     await manager.async_save()
+
+                _arm_vocabulary_catchup()
+
+            # EXISTING ENTITIES ARE NOT PUBLISHED ENTITIES, and the gap between the two
+            # is where the live vocabulary read lands (issue #71).
+            #
+            # `async_at_started` guarantees every integration has SET UP, which is what
+            # the re-detection above needs — it asks the entity registry and the state
+            # machine whether a thing exists. An adapter that reads an entity's
+            # ATTRIBUTES needs something later: the provider's coordinator has to have
+            # POLLED. Measured on this house's box — 150s after a restart,
+            # `vacuum.ivy` still had no `fan_speed_list` as far as the registered
+            # adapter was concerned, so it kept the declared suction list; a
+            # config-entry reload immediately produced the device's own. A user would
+            # have seen the feature silently not apply on every restart.
+            #
+            # So the adapters NAME the entities whose read came back empty
+            # (`_pending_live_reads`) and this watches them. One publish, one
+            # re-registration, and the listener drops the vacuums that no longer need
+            # it — an install where everything published on time never arms at all.
+            #
+            # Deliberately NOT a timer: "how long does a coordinator take" has no right
+            # answer and the state machine already says when the data arrived.
+            @callback
+            def _arm_vocabulary_catchup() -> None:
+                _watched: dict[str, list[str]] = {}
+                for _vid in manager.get_known_vacuum_ids():
+                    _ids = [
+                        str(e)
+                        for e in ((get_adapter_config(_vid) or {}).get(
+                            "_pending_live_reads") or [])
+                        if e
+                    ]
+                    if _ids:
+                        _watched[_vid] = _ids
+                if not _watched:
+                    return
+
+                _unsub: list = []
+
+                @callback
+                def _on_publish(event) -> None:
+                    _changed = event.data.get("entity_id")
+                    for _vid, _ids in list(_watched.items()):
+                        if _changed not in _ids:
+                            continue
+                        _vocab_before = deepcopy(
+                            (get_adapter_config(_vid) or {}).get("vocabulary")
+                        )
+                        try:
+                            register_brand_adapter(hass, _vid, data=_brand_data)
+                        except Exception:  # pragma: no cover - never block a state event
+                            _LOGGER.exception(
+                                "eufy_vacuum: vocabulary catch-up failed for %s", _vid
+                            )
+                            continue
+
+                        # REFRESH ON ANY CHANGE, NOT ONLY ON COMPLETION. This used to
+                        # sit in the "nothing left pending" branch below, which looks
+                        # tidy and strands the common case: a device that publishes its
+                        # suction list but never publishes a mop select — a vacuum-only
+                        # model — would get a corrected config and a card showing the
+                        # fallback forever, because the pending set never empties. Found
+                        # by [VCW-2]; every other test passed.
+                        if _vocab_before != (get_adapter_config(_vid) or {}).get(
+                            "vocabulary"
+                        ):
+                            for _map_id in list(
+                                ((manager.data.get("maps") or {}).get(_vid) or {})
+                            ):
+                                manager._notify_rooms_updated(  # noqa: SLF001
+                                    vacuum_entity_id=_vid, map_id=str(_map_id)
+                                )
+
+                        _still = [
+                            str(e)
+                            for e in ((get_adapter_config(_vid) or {}).get(
+                                "_pending_live_reads") or [])
+                            if e
+                        ]
+                        if _still:
+                            _watched[_vid] = _still
+                        else:
+                            _watched.pop(_vid, None)
+                            _LOGGER.info(
+                                "eufy_vacuum: read %s's vocabulary off the device once "
+                                "its provider published — the lists declared at setup "
+                                "were a fallback", _vid,
+                            )
+                    if not _watched and _unsub:
+                        _unsub.pop()()
+
+                _all_ids = sorted({e for ids in _watched.values() for e in ids})
+                _handle = async_track_state_change_event(hass, _all_ids, _on_publish)
+                _unsub.append(_handle)
+                entry.async_on_unload(_handle)
 
             hass.async_create_task(_do())
 

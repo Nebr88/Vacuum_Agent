@@ -278,6 +278,64 @@ correctly cannot detect a label ablation (humanising `off/low/medium/high` yield
 identical declared labels, so nothing changes for that device), and `LW-8`, which is the
 test that covers it.
 
+### `roborock/test_vocabulary_catchup.py` — existing is not published (#71)
+
+5 test functions, added 2026-10-19. **This is the defect the live-differential check
+caught and the whole green suite could not.**
+
+`async_at_started` guarantees every integration has SET UP — enough to ask whether an
+entity exists, which is what the post-start capability re-detection needs. An adapter
+reading an entity's ATTRIBUTES needs something later: the provider's coordinator has to
+have POLLED. Measured on the maintainer's box, 150 seconds after a restart, the
+registered adapter still held the DECLARED suction list while `vacuum.ivy` was plainly
+publishing `fan_speed_list`; a config-entry reload immediately produced the device's
+own lists, and ivy's real route ladder turned out to be two rungs where we were
+offering three.
+
+So on every restart a user got the old vocabulary. Issue #71's Saros 10 owner would
+have seen the fix silently not apply, with `low`/`medium`/`high` still pushed at a mop
+that rejects them. **Every unit test passed throughout** — they set the states before
+calling register, which is exactly the ordering a real boot does not give you.
+
+The adapter now NAMES the entities whose read came back empty (`_pending_live_reads`)
+and core watches them, re-registering on the first publish and dropping each vacuum as
+it completes. Deliberately not a timer: "how long does a coordinator take" has no right
+answer, and the state machine already says when the data arrived.
+
+| id | what it holds |
+| --- | --- |
+| `VCU-1` | the cold-boot shape — nothing published, every unread source is named |
+| `VCU-2` | **the no-wait guard** — a fully published device names nothing, so no listener is armed and a healthy install pays nothing |
+| `VCU-3` | a partial read names only what is still missing (coordinators do not all land at once, so this is the common case) |
+| `VCU-4` | the water select is not awaited on a mopless model — there is no water vocabulary to wait for, so the listener would never disarm |
+| `VCU-5` | the names are full entity ids, not object ids — core hands them to `async_track_state_change_event`, and a wrong id waits forever and looks exactly like a device that never publishes |
+
+All four behavioural ablations redden it. `VCU-5` cannot detect "nothing is named" —
+its loop body never runs — which is `VCU-1`'s job; the ablation report saying so is the
+check working, not a gap.
+
+`tests/integration/test_vocabulary_catchup_wiring.py` covers the same work END TO END,
+and it earned its place: it found a bug the adapter-level tests could not see.
+
+| id | what it holds |
+| --- | --- |
+| `VCW-1` | a provider that publishes LATE still gets its vocabulary read — the listener backstop re-registers on the publish |
+| `VCW-2` | **the room entity's ATTRIBUTES change too**, not just the config |
+| `VCW-3` | a provider ready on time arms nothing and changes nothing |
+
+**`VCW-2` found a real defect in the first version of the fix.** The refresh was placed
+in the "nothing left pending" branch, which looks tidy and strands the common case: a
+device that publishes its suction list but never publishes a mop select — a vacuum-only
+model — would get a corrected config and a card showing the fallback *forever*, because
+the pending set never empties. Every other test passed. The refresh now follows any
+vocabulary CHANGE, which is the same rule the post-start re-detection uses.
+
+Two smaller things that test taught, both recorded in it: brand resolution keys on
+which INTEGRATION owns the vacuum entity, not on the device record, so patching the
+device alone silently exercises the Eufy adapter; and `VCW-2` asserts rather than skips
+when no room switch exists, because it is the only surface watching that hop and a skip
+would make it worthless.
+
 ### `roborock/test_live_fan_ladder.py` — suction read off the vacuum entity (#71)
 
 6 test functions, added 2026-10-19. The third complaint on #71 was *"there is a MAX+

@@ -538,7 +538,8 @@ def register_roborock_adapter_for_vacuum(
     # Assistant's own STATE_UNAVAILABLE / STATE_UNKNOWN are the canonical vocabulary
     # for this question and are external, so they cross no boundary and re-list
     # nothing private.
-    _route_state = hass.states.get(build_entity_id(vid, SUFFIX_MOP_MODE, DOMAIN_SELECT))
+    _mop_mode_id = build_entity_id(vid, SUFFIX_MOP_MODE, DOMAIN_SELECT)
+    _route_state = hass.states.get(_mop_mode_id)
     _route_usable = bool(
         _route_state is not None
         and str(_route_state.state).strip()
@@ -560,6 +561,27 @@ def register_roborock_adapter_for_vacuum(
         _route_options, _route_rank = build_route_ladder(
             [str(o["value"]) for o in PATH_TYPE_OPTIONS]
         )
+
+    # WHICH LIVE READS CAME BACK EMPTY, so core can come back for them.
+    #
+    # Every vocabulary read above falls back to a declared list when the entity has
+    # published nothing yet, and that fallback is SAFE but WRONG on a device whose
+    # ladder differs — which is the entire point of reading. Measured on the live box:
+    # a cold boot registers this adapter before the provider integration's coordinator
+    # has polled, so `vacuum.<obj>` has no `fan_speed_list` and the selects carry no
+    # `options`. The entities EXIST by then — `async_at_started` guarantees that much —
+    # they simply hold no data, so re-registering at that moment reads nothing either
+    # and the install keeps the declared lists until something reloads the entry.
+    #
+    # Naming the entities is all this does. Core owns the waiting: it watches these and
+    # re-registers when one publishes. Reporting an id costs nothing if it never does.
+    _pending_live_reads = [
+        entity_id for entity_id, got in (
+            (vid, _live_fan_values),
+            (_mop_mode_id, _route_values),
+            (_mop_intensity_id, _live_water_values if mop_settable else [True]),
+        ) if not got
+    ]
 
     # THE ROUTE PRE-CALL. Same shape as the water one above and for the same reason: the
     # select is device-GLOBAL, so a batch cannot carry two depths at once. Per-room intent
@@ -859,6 +881,9 @@ def register_roborock_adapter_for_vacuum(
         "cleaning_time_unit": "min",
 
         "entities": entities,
+        # Entities whose live vocabulary read came back empty — core re-registers this
+        # adapter when one of them publishes. See `_pending_live_reads` above.
+        "_pending_live_reads": _pending_live_reads,
 
         "vocabulary": {
             # Status strings that mean "actively running" (verified in the run trace).

@@ -319,7 +319,7 @@ Brand-specific state vocabulary sets.
 
 *Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:405`.
 
-*Read in 10 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/core/error_tracker.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/core/run_state.py`, `custom_components/eufy_vacuum/dock/manager.py`, `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/learning/brand_facts.py`, `custom_components/eufy_vacuum/listeners/pose_sampler.py`, `custom_components/eufy_vacuum/planning/run_plan.py` ...
+*Read in 11 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/__init__.py`, `custom_components/eufy_vacuum/core/error_tracker.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/core/run_state.py`, `custom_components/eufy_vacuum/dock/manager.py`, `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/learning/brand_facts.py`, `custom_components/eufy_vacuum/listeners/pose_sampler.py` ...
 
 ## Completion
 
@@ -783,7 +783,7 @@ Adapter-declared room profile catalog / overrides (doc 22 §13d). REQUIRED: regi
 
 *Declared by:* eufy, roborock, dreame. *Source:* `custom_components/eufy_vacuum/adapters/config_schema.py:2270`. *Registration check:* `custom_components/eufy_vacuum/adapters/registry.py:507`.
 
-*Read in 6 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/profiles/manager.py`, `custom_components/eufy_vacuum/queue/queue_engine.py`, `custom_components/eufy_vacuum/rooms/room_defaults.py`, `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`, `custom_components/eufy_vacuum/sensor/profile.py`
+*Read in 7 module(s), found by a conservative static scan (a floor, not a complete set):* `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/profiles/manager.py`, `custom_components/eufy_vacuum/queue/queue_engine.py`, `custom_components/eufy_vacuum/rooms/room_defaults.py`, `custom_components/eufy_vacuum/rooms/vocabulary_migration.py`, `custom_components/eufy_vacuum/sensor/profile.py`
 
 ### `anomaly`
 

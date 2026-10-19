@@ -1,0 +1,168 @@
+"""The live-vocabulary catch-up, wired end to end (issue #71).
+
+THE DEFECT THIS COVERS WAS FOUND ON HARDWARE AND WAS INVISIBLE TO 5113 PASSING TESTS,
+twice, in two different places. Both are the same shape — a correct value that never
+reaches the user.
+
+1. `async_at_started` guarantees every integration has SET UP, which is what the
+   post-start capability re-detection needs. An adapter reading an entity's ATTRIBUTES
+   needs the provider's coordinator to have POLLED, which is later and not guaranteed
+   at all. So the adapter kept its DECLARED option lists.
+
+2. Then, once that was fixed, the adapter config was right and the CARD WAS STILL
+   WRONG: room entities compute their attributes from the config but only when they
+   WRITE state, and they had already written ~15 seconds into the boot from the
+   fallback lists. Measured on the live box — the config served
+   `quiet/balanced/turbo/max/gentle` while every room switch served
+   `gentle/quiet/balanced/turbo/max`.
+
+So there are two hops, and each needs its own nudge: re-register when the data lands,
+then tell the room entities to look again. `[VCW-2]` is the second one, and it is the
+one a unit test of either piece alone cannot see.
+
+Coverage targets
+----------------
+[VCW-1] a provider that publishes LATE still gets its vocabulary read — the listener
+        backstop fires on the publish and re-registers.
+[VCW-2] the room entity's ATTRIBUTES change too, not just the config.
+[VCW-3] a provider that was ready on time arms nothing and changes nothing.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
+
+from .test_init_setup import _VAC, _setup
+
+_FAN_LIVE = ["quiet", "balanced", "turbo", "max", "max_plus"]
+
+
+def _fan_options(hass, vacuum=_VAC):
+    return [
+        str(o.get("value"))
+        for o in ((get_adapter_config(vacuum) or {}).get("vocabulary") or {}).get(
+            "fan_speed_options"
+        ) or []
+    ]
+
+
+def _roborock(hass, monkeypatch, *, fan_list=None):
+    """Make the configured vacuum look like a Roborock, optionally mid-publish."""
+    from custom_components.eufy_vacuum.adapters.roborock import adapter as rb
+
+    class _Dev:
+        manufacturer = "Roborock"
+        model = "roborock.vacuum.a147"
+
+    monkeypatch.setattr(rb, "_device_for_vacuum", lambda h, v: _Dev())
+    # Brand resolution keys on which INTEGRATION owns the vacuum entity, not on the
+    # device record — so patching the device alone leaves this a Eufy and the whole
+    # test silently exercises the wrong adapter.
+    from custom_components.eufy_vacuum.adapters import brands
+
+    monkeypatch.setattr(brands, "_vacuum_platform", lambda h, v: "roborock")
+    attrs = {"supported_features": 30524, "fan_speed": "max"}
+    if fan_list is not None:
+        attrs["fan_speed_list"] = fan_list
+    hass.states.async_set(_VAC, "docked", attrs)
+
+
+async def test_vcw_1_a_late_provider_still_gets_its_vocabulary_read(
+    hass, mock_config_entry, monkeypatch
+):
+    """[VCW-1] THE BACKSTOP. Set up with the provider publishing nothing, then let it
+    publish, and the adapter must end up holding the DEVICE's list.
+
+    Without the listener this stays on the declared transcript until something reloads
+    the config entry — which on a real install means every restart serves the wrong
+    vocabulary, and issue #71's reporter would have seen the fix silently not apply.
+    """
+    _roborock(hass, monkeypatch, fan_list=None)
+    assert await _setup(hass, mock_config_entry) is True
+    await hass.async_block_till_done()
+
+    before = _fan_options(hass)
+    assert "max_plus" not in before, "the fallback should be the declared transcript"
+
+    # The coordinator finally polls.
+    _roborock(hass, monkeypatch, fan_list=_FAN_LIVE)
+    await hass.async_block_till_done()
+
+    assert _fan_options(hass) == _FAN_LIVE, (
+        "the provider published and the adapter never looked again"
+    )
+
+
+async def test_vcw_2_the_room_entity_attributes_change_too(
+    hass, mock_config_entry, monkeypatch
+):
+    """[VCW-2] A CORRECTED CONFIG IS NOT A CORRECTED CARD.
+
+    This is the hop that was missed after the first fix landed: the config was right
+    and every room switch still served the fallback, because entities only recompute
+    their attributes when they write state and they had already written. The card shows
+    the state machine, not the config, so this asserts the state machine.
+    """
+    _roborock(hass, monkeypatch, fan_list=None)
+    assert await _setup(hass, mock_config_entry) is True
+    await hass.async_block_till_done()
+
+    # The entry fixture carries no rooms, and a room switch is the only surface that
+    # can show this hop — so seed one and let the platform build its entities.
+    from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
+
+    from .conftest import setup_map
+
+    _manager = hass.data[DOMAIN][DATA_RUNTIME]
+    setup_map(_manager, _VAC, "1", count=1)
+    _manager._notify_rooms_updated(vacuum_entity_id=_VAC, map_id="1")  # noqa: SLF001
+    await hass.async_block_till_done()
+
+    room_switches = [
+        s for s in hass.states.async_all("switch")
+        if s.attributes.get("fan_speed_options") is not None
+    ]
+    # A SKIP HERE WOULD MAKE THIS TEST WORTHLESS — it is the only one watching the hop
+    # that was missed, so it must fail rather than quietly not run.
+    assert room_switches, (
+        "no room switch exposed fan_speed_options; this test cannot observe the hop "
+        "it exists for"
+    )
+
+    _roborock(hass, monkeypatch, fan_list=_FAN_LIVE)
+    await hass.async_block_till_done()
+
+    after = hass.states.get(room_switches[0].entity_id)
+    assert [str(o.get("value")) for o in after.attributes["fan_speed_options"]] == (
+        _FAN_LIVE
+    ), "the config was corrected but the entity never re-wrote its state"
+
+
+async def test_vcw_3_a_punctual_provider_changes_nothing(
+    hass, mock_config_entry, monkeypatch
+):
+    """[VCW-3] The no-op case. A provider ready at setup time needs no catch-up, and
+    the install must not pay for one — no listener, no re-registration, no churn.
+
+    EVERY source has to be published for this, not just the fan: a first draft
+    published only `fan_speed_list` and failed with `['select.alfred_mop_mode']` still
+    pending — which was the code being right and the test being wrong, and a useful
+    reminder that "nothing pending" means nothing is pending.
+    """
+    _roborock(hass, monkeypatch, fan_list=_FAN_LIVE)
+    hass.states.async_set(
+        "select.alfred_mop_mode", "standard",
+        {"options": ["standard", "deep", "deep_plus"]},
+    )
+    hass.states.async_set(
+        "select.alfred_mop_intensity", "off",
+        {"options": ["off", "mild", "standard", "intense"]},
+    )
+    hass.states.async_set("binary_sensor.alfred_water_box_attached", "on")
+    assert await _setup(hass, mock_config_entry) is True
+    await hass.async_block_till_done()
+
+    assert _fan_options(hass) == _FAN_LIVE
+    assert (get_adapter_config(_VAC) or {}).get("_pending_live_reads") == []
