@@ -216,6 +216,68 @@ added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
 | `DC-4` | — | the same validator that rejects the bad ACCEPTS every shipped brand |
 | `DC-5` | — | end to end: the REGISTERED config is what resolution actually reads |
 
+### `roborock/test_live_water_ladder.py` — the mop ladder read off the device (#71)
+
+11 test functions, added 2026-10-19. `WATER_LEVEL_OPTIONS` was a transcript of ONE
+machine — the maintainer's S6, `off/low/medium/high` — declared for every Roborock since.
+A Saros 10 owner's own Developer Tools output settled it: that model's
+`select.<obj>_mop_intensity` offers `off / mild / standard / intense / extreme /
+smart_mode / custom`, and **not one of `low`, `medium`, `high` exists there.** The global
+water pre-call was pushing three words the mop rejects; water is a best-effort entry
+("caught + logged, never aborts"), so it failed into the log on every run while the robot
+kept whatever the vendor app last set. A control the owner CAN see and change that
+silently does nothing — the mirror of #66's route, which they could not see and we set
+anyway.
+
+The adapter already declared that select as a ROLE (so a localized install is rescued)
+and already read a live entity at registration for the route axis. The only missing move
+was asking for `options` instead of `state`.
+
+**`options` is an ATTRIBUTE, not a STATE, and that is the load-bearing difference.**
+`_route_usable` demands a usable VALUE because entity PRESENCE is worthless on this brand
+— the select exists on every V1 Roborock. But `options` is published with the entity
+regardless of whether it ever reports, so the read succeeds on an observe-only mop too:
+`select.ivy_mop_intensity` sits at `unknown` and still carries its four rungs. `LW-9`
+pins that, because reusing the route gate's test here would read nothing on exactly the
+hardware that proved the route gate necessary.
+
+| id | what it holds |
+| --- | --- |
+| `LW-1` | the Saros ladder, from the reporter's own pasted tokens, becomes the picker AND the rank — and `low`/`medium`/`high` are gone |
+| `LW-2` | **the no-regression guard** — a device publishing our declared ladder comes through byte-identical |
+| `LW-3`/`LW-4`/`LW-5` | every empty read falls back to the DECLARATION, never to `[]` — §E1: an empty list *disables* the guard (`if valid and ...`) instead of tightening it, and the cold-boot window before the provider sets up is the common case |
+| `LW-6` | **picker and rank are one sequence**, asserted over every shape the read can produce. They are a replica pair and the failure is silent: a picker value the rank does not know makes `_any_rankable` False, so the safest-water pre-call pushes *nothing* and a batch with a dry room proceeds on whatever the app set — #51's wet-mop, reopened |
+| `LW-7` | an unknown token is humanised, not left raw |
+| `LW-8` | a declared label beats humanisation (`deep_plus` → "Deep+", not "Deep Plus") |
+| `LW-9` | an `unknown`/`unavailable` state still yields options — the ivy case |
+| `LW-10` | blanks and duplicates from the device are dropped |
+
+**Two tokens are deliberately excluded from both lists.** `smart_mode` ("the robot
+decides") and `custom` ("whatever the app last set") are real device options and real
+answers, but not positions on a ladder. Excluding them keeps picker and rank identical —
+one derivation, nothing to drift.
+
+**The open-set problem, and why this ships without 18 language packs.** The set of words
+a Roborock can emit is not knowable: a firmware update adds a rung and a table cannot
+have anticipated it. So the backend supplies a `label` per option, humanised from the
+token where no declared word exists, and the card resolves `vocab.<field>.<value>` first
+and falls back to that label (`src/i18n/en.js`:120 states the contract; the three
+`RN6F7RW6` members all implement it identically). An untranslated rung degrades to
+readable English instead of breaking, and `check:i18n` stays green because no new static
+key template is added.
+
+⚠ **DO NOT REUSE THIS DERIVATION FOR FAN.** Rank order is read order, which is only safe
+because water is published ascending on both machines we can see. Fan is not: the Saros
+publishes `quiet, balanced, turbo, max, max_plus, off_raise_main_brush, …`, where the
+WEAKEST rung is listed sixth. Rank fan by read order and `off_raise_main_brush` becomes
+the strongest suction. Roborock declares no fan pre-call today, so that is a trap set for
+whoever adds one rather than a live bug.
+
+Nine of the eleven claims are ablation-verified. The two that are not are `LW-2`, which
+correctly cannot detect a label ablation (humanising `off/low/medium/high` yields the
+identical declared labels, so nothing changes for that device), and `LW-8`, which is the
+test that covers it.
+
 ### `roborock/test_roborock_upkeep_keys.py` — Roborock on the shared regime → key guide
 
 7 test functions, added 2026-09-12 with the Roborock port. Replaces the three authored guide

@@ -528,3 +528,82 @@ ROBOROCK_ERROR_LABEL_KEYS: dict[str, str] = {
     "wheels_jammed": "fault.roborock.wheels_jammed",
     "wheels_suspended": "fault.roborock.wheels_suspended",
 }
+
+
+# ---------------------------------------------------------------------------
+# Reading the mop ladder off the device instead of declaring it (issue #71)
+# ---------------------------------------------------------------------------
+#
+# WATER_LEVEL_OPTIONS above is a transcript of ONE machine — `select.ivy_mop_intensity`
+# on the maintainer's S6, off/low/medium/high — applied to every Roborock ever since.
+# It is not a Roborock fact. Measured on a Saros 10 (a147, issue #71), the same select
+# offers `off / mild / standard / intense / extreme / smart_mode / custom`: NOT ONE of
+# `low`, `medium`, `high` exists on that machine. The global water pre-call has been
+# pushing three words its mop cannot accept, and because water is a BEST-EFFORT entry
+# ("caught + logged, never aborts") it failed into the log on every run while the robot
+# kept whatever the vendor app last set.
+#
+# `get_water_modes` upstream is an if/else, not an append (`v1_clean_modes.py`:168-172),
+# so the list is always non-empty and never the same list. There is no list to widen to.
+# The device publishes its own, we already resolve the entity that carries it, and
+# `adapter.py` already reads a live entity at registration for the route axis — so the
+# only thing missing was asking for `options` instead of `state`.
+#
+# ⚠ TWO TOKENS ARE NOT RUNGS. `smart_mode` ("the robot decides") and `custom` ("whatever
+# the app last set") are real device options and real ANSWERS, but they are not positions
+# on a ladder. Leaving them in the RANK is scope-doc §E2: an unrankable value makes
+# `_any_rankable` False, the safest-water pre-call `continue`s instead of pushing, and a
+# batch containing a dry room proceeds on whatever water the app last set — issue #51's
+# wet-mop, reopened, with no error anywhere. They are excluded from both lists, which
+# also keeps picker and rank IDENTICAL: one derivation, no second thing to sync.
+#
+# ⚠ RANK ORDER IS THE READ ORDER, AND THAT IS ONLY SAFE BECAUSE THIS AXIS IS PUBLISHED
+# ASCENDING. Water is (off, mild, standard, intense, extreme) and (off, low, medium,
+# high) — both ascending on the two machines we can see. FAN IS NOT: the Saros publishes
+# `quiet, balanced, turbo, max, max_plus, off_raise_main_brush, ...`, where the WEAKEST
+# rung is listed sixth. Rank fan by read order and `off_raise_main_brush` becomes the
+# strongest suction. Roborock declares no fan pre-call today so nothing ranks fan, which
+# is the only reason that is a trap rather than a bug — do not reuse this helper for fan
+# without an explicit order.
+
+#: Device options that are answers but not ladder positions. Excluded from the derived
+#: option list AND the rank — see the §E2 note above for what including them costs.
+NON_RUNG_VALUES: frozenset[str] = frozenset({"smart_mode", "custom"})
+
+#: Labels this adapter already has a better word for than mechanical title-casing.
+#: Everything else is humanised from the token, deliberately: the set of words a
+#: Roborock can emit is NOT knowable — a firmware update adds a rung and we would
+#: otherwise put a raw `off_raise_main_brush` on the card. The card resolves
+#: `vocab.<field>.<value>` first and falls back to THIS label (src/i18n/en.js:120), so a
+#: token nobody has translated degrades to readable English rather than breaking.
+_DECLARED_LABELS: dict[str, str] = {
+    str(o["value"]): str(o["label"])
+    for o in (*WATER_LEVEL_OPTIONS, *PATH_TYPE_OPTIONS, *FAN_SPEED_OPTIONS)
+}
+
+
+def humanize_option(value: str) -> str:
+    """A readable label for a device token we have no declared word for.
+
+    `max_plus` -> `Max Plus`, `off_raise_main_brush` -> `Off Raise Main Brush`. Crude on
+    purpose: it has to be right for words that do not exist yet, so it cannot consult a
+    table. A declared label always wins over it.
+    """
+    return " ".join(part for part in str(value).replace("-", "_").split("_") if part).title()
+
+
+def build_option_list(values) -> list[dict]:
+    """``[{"value", "label"}]`` for device tokens, declared labels winning.
+
+    Order is preserved from the device — it is the ladder, and the caller's rank is the
+    same sequence. Non-rungs and blanks are dropped.
+    """
+    seen: set[str] = set()
+    options: list[dict] = []
+    for raw in values or []:
+        token = str(raw).strip()
+        if not token or token.lower() in NON_RUNG_VALUES or token in seen:
+            continue
+        seen.add(token)
+        options.append({"value": token, "label": _DECLARED_LABELS.get(token) or humanize_option(token)})
+    return options

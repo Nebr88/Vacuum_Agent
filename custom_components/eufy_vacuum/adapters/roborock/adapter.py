@@ -60,6 +60,7 @@ from .upkeep_keys import ROBOROCK_MODEL_KEY_REGIMES, ROBOROCK_UPKEEP_KEY_GUIDES
 # list not existing yet (ISSUE #71).
 from . import vocabulary
 from .vocabulary import (
+    build_option_list,
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
     CANCEL_DETECTION_STATES,
@@ -311,12 +312,46 @@ def register_roborock_adapter_for_vacuum(
     # slot is `path_type`, this brand's own name for the pass-density axis Eufy calls
     # clean_intensity, and the card has rendered a picker for it all along; the axis was
     # simply declared with values (wide/narrow) no Roborock has ever had. Issue #66.
+    #
+    # THE MOP LADDER IS READ OFF THE DEVICE (issue #71). `select.<obj>_mop_intensity`
+    # publishes its own `options`, this adapter already declares that entity as a ROLE
+    # (so a localized install is rescued), and `_route_usable` below already proves an
+    # entity can be read at registration. Measured on a Saros 10: the device offers
+    # off/mild/standard/intense/extreme, and NOT ONE of our declared low/medium/high
+    # exists there — we were pushing words its mop rejects.
+    #
+    # OPTIONS IS AN ATTRIBUTE, NOT A STATE, and that is why this works where the route
+    # gate could not. `_route_usable` needs a usable VALUE and the S6's mop_mode never
+    # leaves `unavailable`; `options` is published with the entity regardless, so the
+    # read succeeds on an observe-only mop too. Verified live: `select.ivy_mop_intensity`
+    # sits at `unknown` and still carries off/low/medium/high.
+    #
+    # The declared list stays as the FALLBACK, for the window before the provider
+    # integration has set up (the same cold-boot race the vocabulary migration's latch is
+    # written against) and for a model that publishes no options at all. Falling back to
+    # a transcript of one S6 is wrong for a Saros, but it is what shipped yesterday — the
+    # read can only improve on it, never regress it.
+    #
+    # ONE DERIVATION FEEDS BOTH the picker and the rank. They are a replica pair: a value
+    # the picker offers that the rank does not know makes `_any_rankable` False and the
+    # safest-water pre-call push NOTHING (§E2 / issue #51). Deriving them separately is
+    # how that gap opens, so `_water_options` is computed once and `_water_rank` is read
+    # straight off it.
+    _mop_intensity_state = hass.states.get(_mop_intensity_id)
+    _live_water_values = (
+        list((_mop_intensity_state.attributes or {}).get("options") or [])
+        if _mop_intensity_state is not None
+        else []
+    )
+    _water_options = build_option_list(_live_water_values) or list(WATER_LEVEL_OPTIONS)
+    _water_rank = [str(o["value"]) for o in _water_options]
+
     mop_pre_calls: list[dict] = []
     if mop_settable:
         mop_pre_calls = [
             {
                 "field": "water_level",
-                "rank": ["off", "low", "medium", "high"],
+                "rank": _water_rank,
                 # The water/mop-intensity select is device-GLOBAL, so a mixed mop +
                 # vacuum-only batch (a single atomic dispatch) can't zero water per-room.
                 # Max-wins would wet-mop the dry rooms; "safest" flips a MIXED batch to the
@@ -786,7 +821,10 @@ def register_roborock_adapter_for_vacuum(
             **(
                 {
                     "clean_mode_options": CLEAN_MODE_OPTIONS,      # vacuum / mop / vacuum_mop
-                    "water_level_options": WATER_LEVEL_OPTIONS,    # off/low/medium/high, canonical 1:1
+                    # Read off the device where it published a ladder; the declared
+                    # off/low/medium/high only when it did not. Same list the water
+                    # pre-call ranks — one derivation, see `_water_options`.
+                    "water_level_options": _water_options,
                 }
                 if mop_settable
                 else {}
