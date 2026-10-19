@@ -41,7 +41,11 @@
 # ---------------------------------------------------------------------------
 
 from __future__ import annotations
-from ..profiles.room_profiles import may_wet_floor, resolve_axis
+from ..profiles.room_profiles import (
+    default_setting_values,
+    may_wet_floor,
+    resolve_axis,
+)
 
 import asyncio
 from datetime import datetime
@@ -5899,6 +5903,15 @@ class EufyVacuumManager:
         _, _ci_options = resolve_axis(adapter_vocabulary, "clean_intensity")
         if _ci_options:
             adapter_vocabulary.setdefault("clean_intensity_options", _ci_options)
+        # THE BRAND'S OWN DEFAULT FOR EACH AXIS, so the card can ask whether a room is
+        # at its default instead of hardcoding brand words to guess. `rooms.js` decided
+        # that with `["off","normal"]` for suction — words no shipped brand has, so the
+        # test never fired — and `"standard"` for the path, right for two brands by luck
+        # and wrong for Eufy, where `standard` is a RETIRED value. Core owns the KEY,
+        # never the brand's word (f/eufy_is_not_the_default).
+        _setting_defaults = default_setting_values(
+            _adapter_cfg.get("room_profiles"), adapter_vocabulary
+        )
 
         # Per-room editor capability hints surfaced to the card:
         # - max_clean_passes: upper bound for the passes chips (the dispatch
@@ -6168,6 +6181,9 @@ class EufyVacuumManager:
             "lifecycle": lifecycle,
             "upkeep": upkeep,
             "adapter_vocabulary": adapter_vocabulary,
+            # Per-axis defaults under CANONICAL names, for "is this room at its
+            # default?" — see `_setting_defaults` above.
+            "room_setting_defaults": _setting_defaults,
             # The brand id, so the card's vocab() can try a brand-scoped label
             # (vocab.<adapter_id>.<field>.<value>) BEFORE the shared catalog — a brand
             # owns its value's word and must not be overridden by another's (RN6F7RW6).

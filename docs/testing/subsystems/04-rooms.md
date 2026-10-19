@@ -159,6 +159,55 @@ _VOCABULARY_FIELDS)` — lets a caller name `name` or `room_id`, which sit in th
 dict as the settings and appear in no option list. Every room would be stripped of its
 name. The filter is an intersection with `_VOCABULARY_FIELDS` for that reason.
 
+### "Is this room at its default?" — asked of the brand (added 2026-10-19)
+
+The Rooms view hides a setting chip whose value is the default, and it decided that
+with brand WORDS hardcoded in a brand-agnostic renderer:
+
+```js
+isDefaultPower = !fanSpeed || ["off","normal"].includes(fanSpeed)
+isDefaultPath  = !cleanIntensity || cleanIntensity === "standard"
+```
+
+**Neither suction word exists in any shipped brand's vocabulary.** Eufy declares
+Quiet/Standard/Turbo/Max, Roborock quiet/balanced/turbo/max/gentle, Dreame
+quiet/standard/strong/turbo. So that test never fired and the suction chip rendered on
+every room, including the defaults it was written to hide. `"normal"` is the tell:
+`vocab.clean_intensity.normal` exists and is marked manual-only, so the pair reads as
+copied out of an intensity context into a fan test and never exercised since.
+
+The path word was right for Roborock and Dreame **by coincidence** — both default to
+`standard` — and wrong for Eufy, where `standard` is a RETIRED `clean_intensity` value.
+It hid a value that should not exist and showed the real default, `Quick`.
+
+That is `f/eufy_is_not_the_default` inside a renderer: core owns the KEY, never the
+brand's word. The brand already states this in the profile `default_profile` names, so
+`profiles/room_profiles.py::default_setting_values` derives it and the dashboard
+snapshot ships it as `room_setting_defaults` — with the pass-density axis folded onto
+the canonical name, so a Roborock's `path_type: "standard"` arrives as
+`clean_intensity` and the card compares like with like.
+
+**It became live for a third brand the same day.** Until the axis resolution landed,
+Roborock's path chip never rendered at all — `_normalizeRoomDisplayData` reads
+`clean_intensity` and a Roborock room stores `path_type`, so the value was always `""`
+and the chip was hidden by the FALSY branch, not the `"standard"` branch anyone
+debugging it would have looked at.
+
+| id | what it holds |
+|---|---|
+| `BDS-1` | a value equal to the brand's declared default is at default |
+| `BDS-2` | a different value is not, and case does not decide it either way |
+| `BDS-3` | an empty value is at default — nothing chosen, nothing to show |
+| `BDS-4` | **no declaration ⇒ NOT default** — the failure direction matters: treating it as default would hide settings a user deliberately chose, on the brands we know least about |
+| `BDS-5` | axes are answered independently (`standard` IS Roborock's default path and is NOT its default suction) |
+| `BDS-6` | the retired literals decide nothing, checked against all three brands' real defaults |
+
+All three behavioural ablations redden it. **Measured impact** on the maintainer's three
+boxes before shipping: 13 chips change — 2 on the Eufy (its real default `Quick` now
+hides), 4 on the Roborock and 7 on the Dreame (the suction chip hiding at default for
+the first time). The path chip is unchanged on Roborock and Dreame, because the literal
+already matched their default.
+
 ### One axis, two brand names — `test_axis_resolution.py` (added 2026-10-19)
 
 Eufy and Dreame declare the pass-density axis as `clean_intensity`. Roborock declares

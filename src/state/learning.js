@@ -405,6 +405,32 @@ export function applyLearningState(proto) {
   };
 
   /**
+   * Is this room setting at the BRAND's default for that axis?
+   *
+   * The Rooms view hides a chip whose value is the default, and it used to decide
+   * that with brand words written into the renderer: `["off","normal"]` for suction,
+   * which matches NO shipped brand's vocabulary and so never fired, and `"standard"`
+   * for the cleaning path, right for Roborock and Dreame by coincidence and wrong for
+   * Eufy, where `standard` is a RETIRED clean_intensity value. Core owns the key,
+   * never the brand's word — the backend states each brand's own default.
+   *
+   * An EMPTY value counts as default: nothing was chosen, so there is nothing to show.
+   * An absent declaration returns false, so an unknown brand shows every chip rather
+   * than silently hiding settings the user did pick.
+   *
+   * @param {string} field - Canonical axis name ("fan_speed", "clean_intensity", …).
+   * @param {*} value - The room's stored value for that axis.
+   * @returns {boolean}
+   */
+  proto.isBrandDefaultSetting = function (field, value) {
+    const text = String(value ?? "").trim();
+    if (!text) return true;
+    const declared = this.dashboardSnapshot()?.room_setting_defaults?.[field];
+    if (declared == null || String(declared).trim() === "") return false;
+    return text.toLowerCase() === String(declared).trim().toLowerCase();
+  };
+
+  /**
    * Convenience: just the `value` strings from adapterOptionsFor(role).
    * Useful where the card historically worked with flat string arrays.
    */

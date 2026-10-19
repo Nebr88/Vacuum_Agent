@@ -1200,21 +1200,33 @@ proto.renderRoomCard = function (room, state) {
     ? this.tVocabRaw("clean_mode", normalizedRoom.cleanMode, normalizedRoom.cleanModeLabel || this._formatCleanMode(normalizedRoom.cleanMode))
     : null;
 
-  const isDefaultPower = !normalizedRoom.fanSpeed ||
-    ["off", "normal"].includes(String(normalizedRoom.fanSpeed).toLowerCase());
+  // THE BRAND SAYS WHAT ITS DEFAULT IS; core does not guess with words it does not own.
+  // This was `["off","normal"].includes(...)` — neither word appears in ANY shipped
+  // brand's fan vocabulary (Eufy Quiet/Standard/Turbo/Max, Roborock
+  // quiet/balanced/turbo/max/gentle, Dreame quiet/standard/strong/turbo), so the test
+  // never fired and the suction chip rendered on every room including defaults.
+  // `"normal"` is the tell: `vocab.clean_intensity.normal` exists and is manual-only,
+  // so the pair reads as copied out of an intensity context into a fan test.
+  const isDefaultPower = state.isBrandDefaultSetting("fan_speed", normalizedRoom.fanSpeed);
   const powerChip = !isDefaultPower
     ? this.tVocabRaw("fan_speed", normalizedRoom.fanSpeed, normalizedRoom.fanSpeedLabel || this._formatFanSpeed(normalizedRoom.fanSpeed))
     : null;
 
-  const isDefaultPath = !normalizedRoom.cleanIntensity ||
-    String(normalizedRoom.cleanIntensity).toLowerCase() === "standard";
+  // Was a hardcoded `"standard"`: right for Roborock and Dreame by coincidence (both
+  // default to it) and wrong for Eufy, where `standard` is a RETIRED clean_intensity
+  // value — so it hid a value that should not exist and showed the real default `Quick`.
+  const isDefaultPath = state.isBrandDefaultSetting(
+    "clean_intensity", normalizedRoom.cleanIntensity,
+  );
   const pathChip = !isDefaultPath
     ? this.tVocabRaw("clean_intensity", normalizedRoom.cleanIntensity, normalizedRoom.cleanIntensityLabel || this._formatCleanIntensity(normalizedRoom.cleanIntensity))
     : null;
 
+  // Water keeps its mop-mode gate — a dry room has no water to report — but the
+  // "no water" word now comes from the brand too. Eufy spells it `Off`, Roborock
+  // `off`, and Dreame has no enum at all (a 1..32 slider whose empty value is "").
   const waterChip = this._isMopMode(normalizedRoom.cleanMode) &&
-    normalizedRoom.waterLevel &&
-    String(normalizedRoom.waterLevel).toLowerCase() !== "off"
+    !state.isBrandDefaultSetting("water_level", normalizedRoom.waterLevel)
     ? this.tVocabRaw("water_level", normalizedRoom.waterLevel, normalizedRoom.waterLevelLabel || this._formatWaterLevel(normalizedRoom.waterLevel))
     : null;
 

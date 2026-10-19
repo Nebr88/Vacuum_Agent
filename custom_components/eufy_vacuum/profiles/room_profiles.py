@@ -237,6 +237,49 @@ def resolve_axis(
     return axis, []
 
 
+def default_setting_values(
+    catalog: dict[str, Any] | None, vocabulary: dict[str, Any] | None = None
+) -> dict[str, str]:
+    """The brand's own value for each vocabulary axis, under CANONICAL names.
+
+    "Is this room at its default?" is a question the card asks to decide whether a
+    setting is worth a chip, and it answered it with brand WORDS hardcoded in a
+    brand-agnostic renderer: `["off", "normal"]` for suction and `"standard"` for the
+    cleaning path. Neither suction word exists in ANY shipped brand's list — Eufy says
+    Quiet/Standard/Turbo/Max, Roborock quiet/balanced/turbo/max/gentle, Dreame
+    quiet/standard/strong/turbo — so that test never fired and the chip always rendered.
+    `"normal"` is the tell: `vocab.clean_intensity.normal` exists and is marked
+    manual-only, so the pair reads as copied from an intensity context into a fan test.
+    The path word was right for two brands by luck and wrong for Eufy, where `standard`
+    is a RETIRED clean_intensity value.
+
+    That is `f/eufy_is_not_the_default` inside a renderer: core owns the KEY, never the
+    brand's word. The answer has to come from the brand, and the brand already states
+    it — the profile named by ``default_profile``.
+
+    The pass-density axis is returned under the CANONICAL name whatever the brand calls
+    its field, so the card compares like with like: a Roborock's `path_type: "standard"`
+    arrives as `clean_intensity`.
+    """
+    block = catalog or {}
+    profile = (block.get("builtins") or {}).get(block.get("default_profile")) or {}
+    if not isinstance(profile, dict):
+        return {}
+
+    defaults: dict[str, str] = {}
+    for field in VOCABULARY_FIELDS:
+        value = profile.get(field)
+        if value is None or str(value).strip() == "":
+            continue
+        defaults[field] = str(value)
+
+    # Fold the brand's own pass-density field onto the canonical name.
+    axis_field, _ = resolve_axis(vocabulary, "clean_intensity")
+    if axis_field != "clean_intensity" and axis_field in defaults:
+        defaults["clean_intensity"] = defaults.pop(axis_field)
+    return defaults
+
+
 def declared_profile_fields(catalog: dict[str, Any] | None) -> set[str]:
     """Every field name appearing in any profile THIS brand declares.
 
