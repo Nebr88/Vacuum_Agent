@@ -71,6 +71,36 @@ def step_requires_stepped_execution(step: Any) -> bool:
     return isinstance(step, dict) and is_stepped_step_type(step.get("type"))
 
 
+def room_group_steps(steps: Any) -> list:
+    """Just the room_group steps of a plan, in order."""
+    if not isinstance(steps, list):
+        return []
+    return [s for s in steps if isinstance(s, dict) and s.get("type") == "room_group"]
+
+
+def plan_is_sequenced(steps: Any) -> bool:
+    """Is this plan a SEQUENCE rather than one flat clean? (issue #72)
+
+    Two independent reasons, and only the first is about step TYPE: a plan containing a
+    break (``charge_wait``/``wait``/``zone``), or a plan containing MORE THAN ONE
+    room_group. The second is plan SHAPE, which is why
+    ``plan_requires_stepped_execution`` deliberately excludes it — see its docstring.
+
+    THIS FUNCTION EXISTS BECAUSE THE SHAPE CLAUSE WAS LOCAL IN FOUR PLACES AND PRESENT
+    IN ONLY ONE. ``ProfileManager``'s ``has_stops`` had it, so the backend told the card
+    a multi-group plan was sequenced, the card previewed "Clean A -> Clean B" and
+    shipped a chip that appends a second room_group — while all three gates that
+    actually EXECUTE asked only about step types. A user could author exactly issue #72,
+    watch the card promise it, and watch the run go flat with the per-group settings
+    silently discarded.
+
+    Centralising the QUESTION, not the vocabulary: ``plan_requires_stepped_execution``
+    keeps its narrower meaning for callers that genuinely want "does this contain a
+    break", and anything asking "should this run as a sequence" asks here.
+    """
+    return plan_requires_stepped_execution(steps) or len(room_group_steps(steps)) > 1
+
+
 def plan_requires_stepped_execution(steps: Any) -> bool:
     """Return whether ANY step in a plan makes the run stepped.
 

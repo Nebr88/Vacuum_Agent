@@ -68,3 +68,50 @@ except-paths (`_safe_int` / `_safe_float` `TypeError`/`ValueError` arms), the
 defensive early-returns / disabled-rule and non-dict-room skips inside
 `get_runtime_path_block_report` (no-queue, no-remaining, structural-issue, and
 unchanged-signature returns) — all defensive or low-value branch tails.
+
+### Queuing room groups — `test_queued_room_groups.py` (issue #72, added 2026-10-20)
+
+> *"I typically let it vacuum twice before mopping... if today I would like to execute
+> this sequence for room A and room B, and tomorrow for room A and room C. Profile
+> doesn't work well in this use case."*
+
+N room groups in one run, each keeping its own per-room settings, with the set of rooms
+changing day to day.
+
+**This was HALF-BUILT, not missing, and that is what made it a fix rather than a
+design.** `ProfileManager`'s `has_stops` already declared `len(room_group_steps) > 1` to
+be a sequenced run; the card mirrored that rule, routed Start through the stepped path,
+previewed *"Clean A → Clean B"* and shipped a chip that appends a second group. All
+three gates that actually EXECUTE asked only "does this contain a charge_wait/wait/zone".
+**A user could author exactly this issue, watch the card promise it, and watch the run
+go flat with every group's settings discarded.**
+
+The question is now asked once, by `step_types.py::plan_is_sequenced`, in all four
+places. `plan_requires_stepped_execution` keeps its narrower meaning for callers that
+genuinely want "does this contain a break" — `QRG-5` asserts both, because the shape
+clause leaking into that vocabulary is the other way this drifts.
+
+| id | what it holds |
+|---|---|
+| `QRG-1` | two groups with no break stay two phases |
+| `QRG-2` | one group is still one atomic clean — the no-cost guard |
+| `QRG-3` | **each group keeps its OWN settings**; ids alone would pass against the old behaviour |
+| `QRG-4` | three groups stay three, in authored order |
+| `QRG-5` | `has_stops` and the executing gates now agree — that disagreement WAS the bug |
+| `QRG-6` | a single SURVIVING group is kept, not rebuilt |
+
+**`QRG-6` exists because an ablation looked weak and wasn't.** Disabling the collapse
+changed nothing for one group, which read as a soft test — the real answer was that the
+collapse was doing something worse than nothing. It rebuilt the phase with
+`managed_rooms=effective_rooms`, the GLOBAL view, discarding the per-group overlay the
+builder had just merged and re-protected. That is #72's defect at N=1, and it is
+reachable: one group plus a zone that resolves to nothing drops the zone and lands
+exactly there, so a user whose saved zone went missing lost that group's settings too.
+
+⚠ **`ZN-3`'s assertion changed with this.** A dropped zone used to fold the surrounding
+groups into one atomic clean; two groups are a sequence whether or not a zone sits
+between them, so it now removes the zone and nothing else. `ZN-3b` is the counter-arm.
+
+**The collapse is the gate a partial patch would miss.** Opening only the two
+stepped-path gates looks right, passes, and still runs flat.
+

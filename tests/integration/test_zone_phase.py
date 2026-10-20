@@ -101,11 +101,35 @@ async def test_rooms_plus_zone_stays_multiphase(hass, manager, monkeypatch):
 
 
 async def test_zone_no_geometry_dropped(hass, manager, monkeypatch):
-    """[ZN-3] a zone that resolves to nothing is skipped; with no zone/break left, collapses to atomic."""
+    """[ZN-3] a zone that resolves to nothing is skipped — and the room groups either
+    side of it STAY two groups.
+
+    ⚠ THE SECOND HALF OF THIS CHANGED 2026-10-20 (issue #72). It used to assert the
+    rooms folded into one atomic clean, on the reasoning that the zone was the only
+    thing making the run multi-phase. That was the old rule, and it quietly discarded
+    the per-group settings overlay: two room groups ARE a sequence, whether or not a
+    zone sits between them, and the user authored two because they wanted two.
+
+    So a dropped zone now removes the zone and nothing else. The run is still what was
+    authored, minus the part that could not resolve.
+    """
     phases = _steps_phases(manager, monkeypatch, [_rg(1), _zn("z_missing"), _rg(2)],
                            included={1, 2}, resolves=False)
     assert all(p.get("phase_type") != "zone" for p in phases)
-    assert phases[0]["ids"] == [1, 2]  # rooms folded into one atomic clean
+    assert [p["ids"] for p in phases] == [[1], [2]], (
+        "folded two authored groups into one clean, losing each group's settings"
+    )
+
+
+async def test_zn_3b_a_single_group_still_collapses(hass, manager, monkeypatch):
+    """[ZN-3b] The other arm: ONE room group plus a dropped zone is not a sequence, so
+    it still becomes one atomic clean. Without this, ZN-3 could be satisfied by never
+    collapsing anything — and a plain one-group run would pay for multi-phase dispatch
+    it does not need."""
+    phases = _steps_phases(manager, monkeypatch, [_rg(1, 2), _zn("z_missing")],
+                           included={1, 2}, resolves=False)
+    assert all(p.get("phase_type") != "zone" for p in phases)
+    assert [p["ids"] for p in phases] == [[1, 2]]
 
 
 async def test_advance_into_zone_spawns_room_watchdog(hass, manager, monkeypatch):

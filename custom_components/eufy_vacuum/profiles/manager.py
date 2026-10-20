@@ -84,7 +84,11 @@ from ..profiles.room_profiles import (
 )
 from ..rooms.room_manager import build_room_selection_summary
 from ..timestamp_utils import utc_now_iso
-from ..step_types import plan_requires_stepped_execution, step_requires_stepped_execution
+from ..step_types import (
+    plan_is_sequenced,
+    plan_requires_stepped_execution,
+    step_requires_stepped_execution,
+)
 from homeassistant.exceptions import ServiceValidationError
 
 if TYPE_CHECKING:
@@ -1367,10 +1371,10 @@ class ProfileManager:
             # The ``len(_room_group_steps) > 1`` clause stays LOCAL on purpose: it is
             # plan SHAPE, not step type, which ``plan_requires_stepped_execution``'s own
             # docstring says does not belong in that vocabulary.
-            "has_stops": (
-                plan_requires_stepped_execution(steps)
-                or len(_room_group_steps) > 1
-            ),
+            # The same question the three executing gates now ask, through the same
+            # helper — this clause being local here and absent there is exactly how the
+            # card and the backend disagreed (issue #72).
+            "has_stops": plan_is_sequenced(steps),
         }
 
     def _current_enabled_rooms_for_run_profile(
@@ -2184,9 +2188,16 @@ class ProfileManager:
             if strict_order is None
             else bool(strict_order)
         )
-        if any(
-            step_requires_stepped_execution(s) for s in _prof_steps
-        ):
+        # ISSUE #72 — MORE THAN ONE ROOM GROUP IS A SEQUENCE TOO.
+        #
+        # This asked only "does any step make the run stepped", i.e. is there a
+        # charge_wait/wait/zone. A profile that is simply "clean these rooms, then
+        # those rooms" was therefore never stashed, so the plan builder never saw it
+        # and the run went flat — losing each group's own per-room settings, which is
+        # the entire point of grouping them. `has_stops` below already answered this
+        # correctly, which is how the card came to promise a sequence the backend did
+        # not run.
+        if plan_is_sequenced(_prof_steps):
             self._manager.data.setdefault("_pending_run_steps", {}).setdefault(
                 vacuum_entity_id, {}
             )[str(map_id)] = _prof_steps

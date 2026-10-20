@@ -54,7 +54,11 @@ from ..adapters.registry import (
     adapter_honors_clean_order,
     get_adapter_config as _get_adapter_config,
 )
-from ..step_types import CLEANING_PHASE_TYPE, DOCK_POLLED_PHASE_TYPES
+from ..step_types import (
+    CLEANING_PHASE_TYPE,
+    DOCK_POLLED_PHASE_TYPES,
+    plan_is_sequenced,
+)
 from ..entity_helpers import get_floor_type_label
 from ..queue.queue_engine import build_queue_from_managed_rooms
 from ..queue.dispatch_engines import get_dispatch_engine
@@ -1043,15 +1047,39 @@ class RunPlanManager:
         # A zone is a real clean phase, so a rooms+zone run (no charge/wait) must STAY
         # multi-phase — only collapse to one atomic clean when there is nothing but
         # room_group dispatch phases (no breaks AND no zones).
-        if not any(
+        # ISSUE #72 — AND MORE THAN ONE ROOM GROUP MUST SURVIVE THE COLLAPSE.
+        #
+        # Past both gates above, N room_group phases were still rebuilt into ONE atomic
+        # dispatch whenever there was no break and no zone — which DISCARDS each group's
+        # per-room settings overlay. That is the third and last place the sequence died,
+        # and the one a patch that opens only the two gates would miss: it would look
+        # right, pass, and still run flat.
+        _room_group_phases = [
+            p for p in collapsed if p.get("phase_type") not in _BREAKS
+            and p.get("phase_type") != "zone"
+        ]
+        _no_breaks = not any(
             p.get("phase_type") in _BREAKS or p.get("phase_type") == "zone"
             for p in collapsed
-        ):
-            all_ids = [rid for p in collapsed for rid in p.get("queue_room_ids", [])]
+        )
+        if _room_group_phases and len(_room_group_phases) <= 1 and _no_breaks:
+            # ONE SURVIVING GROUP IS KEPT, NOT REBUILT.
+            #
+            # Rebuilding passed `managed_rooms=effective_rooms` — the GLOBAL view —
+            # which throws away the per-group overlay the loop above just merged and
+            # re-protected. That is the same defect as #72 at N=1, and it is reachable:
+            # a plan of one room group plus a zone that resolves to nothing drops the
+            # zone and lands exactly here, silently losing that group's own settings.
+            # The phase is already correct; there is nothing to rebuild it from that is
+            # better than itself.
+            result = _room_group_phases
+        elif _no_breaks and not _room_group_phases:
+            # NOTHING survived — every group was blocked or empty. Fall back to the
+            # included rooms so the run is not silently empty.
             result = self._build_dispatch_phases(
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
                 managed_rooms=effective_rooms,
-                queue_room_ids=all_ids or sorted(included_room_ids),
+                queue_room_ids=sorted(included_room_ids),
                 strict_order=strict_order,
             )
         else:
@@ -1548,15 +1576,12 @@ class RunPlanManager:
             _queue_steps = self._manager.get_queue_steps(
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
             ).get("steps")
-            if _queue_steps and any(
-                isinstance(s, dict) and s.get("type") in ("charge_wait", "wait", "zone")
-                for s in _queue_steps
-            ):
+            # ISSUE #72 — and these were the two hand-spelled copies the vocabulary
+            # module's own comment names. Both asked only about step TYPE, so a plan
+            # that is "these rooms, then those rooms" never reached the stepped path.
+            if _queue_steps and plan_is_sequenced(_queue_steps):
                 _run_steps = _queue_steps
-        if _run_steps and any(
-            isinstance(s, dict) and s.get("type") in ("charge_wait", "wait", "zone")
-            for s in _run_steps
-        ):
+        if _run_steps and plan_is_sequenced(_run_steps):
             # A stepped run WITH STOPS is a deliberate sequence, so force strict order:
             # a path-optimizing brand (Roborock, honors_clean_order False) must then run
             # each group's rooms in the exact order shown instead of silently re-ordering
