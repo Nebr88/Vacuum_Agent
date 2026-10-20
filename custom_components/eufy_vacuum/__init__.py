@@ -622,6 +622,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             #
             # Deliberately NOT a timer: "how long does a coordinator take" has no right
             # answer and the state machine already says when the data arrived.
+            async def _rerun_vocabulary_repairs() -> None:
+                """Re-adjudicate stored rooms now that a real vocabulary exists.
+
+                Idempotent and latch-guarded: a repair that already recorded itself
+                returns immediately, so calling this per catch-up costs nothing on an
+                install that never deferred.
+                """
+                try:
+                    _res = [
+                        migrate_path_type_residue(
+                            data=manager.data, get_config=get_adapter_config
+                        ),
+                        migrate_water_level_residue(
+                            data=manager.data, get_config=get_adapter_config
+                        ),
+                    ]
+                    if any(r["changes"] for r in _res):
+                        await manager.async_save()
+                except Exception:  # pragma: no cover - never block the catch-up
+                    _LOGGER.exception(
+                        "eufy_vacuum: re-running the vocabulary repairs failed; "
+                        "they will retry on the next start"
+                    )
+
             @callback
             def _arm_vocabulary_catchup() -> None:
                 _watched: dict[str, list[str]] = {}
@@ -638,6 +662,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     return
 
                 _unsub: list = []
+
+                @callback
+                def _disarm() -> None:
+                    """Stop watching. Safe to call twice; HA's unsubscribe is NOT.
+
+                    TWO OWNERS HOLD THIS HANDLE — the callback below, when the last
+                    vacuum catches up, and config-entry unload — and
+                    `async_track_state_change_event`'s unsubscribe raises
+                    `ValueError: list.remove(x): x not in list` the second time. That
+                    escapes `_async_process_on_unload`, which does not catch, so the
+                    entry lands in FAILED_UNLOAD: non-recoverable, `async_reload` skips
+                    the re-setup, and the integration stays down until Home Assistant
+                    is restarted. Registering the raw handle in both places was exactly
+                    that bug. Popping the list IS the guard, so whoever gets there
+                    second finds nothing to do.
+                    """
+                    while _unsub:
+                        _unsub.pop()()
 
                 @callback
                 def _on_publish(event) -> None:
@@ -672,6 +714,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 manager._notify_rooms_updated(  # noqa: SLF001
                                     vacuum_entity_id=_vid, map_id=str(_map_id)
                                 )
+                            # AND RE-RUN THE REPAIRS THE FALLBACK MADE THEM DEFER.
+                            #
+                            # The residue repairs decline to latch while any adapter is
+                            # still serving a fallback vocabulary, because judging a
+                            # stored value against a guessed ladder is how a one-shot
+                            # key burns having repaired nothing. Deferring is only half
+                            # an answer: without this they would wait for the NEXT
+                            # restart, so a user who upgrades and never reboots again
+                            # keeps the broken values indefinitely. The device's own
+                            # vocabulary has just arrived, which is precisely the
+                            # moment they can be adjudicated.
+                            hass.async_create_task(_rerun_vocabulary_repairs())
 
                         _still = [
                             str(e)
@@ -688,13 +742,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 "its provider published — the lists declared at setup "
                                 "were a fallback", _vid,
                             )
-                    if not _watched and _unsub:
-                        _unsub.pop()()
+                    if not _watched:
+                        _disarm()
 
                 _all_ids = sorted({e for ids in _watched.values() for e in ids})
-                _handle = async_track_state_change_event(hass, _all_ids, _on_publish)
-                _unsub.append(_handle)
-                entry.async_on_unload(_handle)
+                _unsub.append(
+                    async_track_state_change_event(hass, _all_ids, _on_publish)
+                )
+                entry.async_on_unload(_disarm)
 
             hass.async_create_task(_do())
 

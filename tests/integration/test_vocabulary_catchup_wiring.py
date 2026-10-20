@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import pytest
 
+from homeassistant.config_entries import ConfigEntryState
+
 from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
 
 from .test_init_setup import _VAC, _setup
@@ -166,3 +168,47 @@ async def test_vcw_3_a_punctual_provider_changes_nothing(
 
     assert _fan_options(hass) == _FAN_LIVE
     assert (get_adapter_config(_VAC) or {}).get("_pending_live_reads") == []
+
+
+async def test_vcw_4_the_entry_still_unloads_after_the_catch_up_completes(
+    hass, mock_config_entry, monkeypatch
+):
+    """[VCW-4] THE BUG THAT COULD TAKE THE INTEGRATION DOWN, caught by the pre-release
+    audit and invisible to every other test.
+
+    The catch-up handle had TWO owners: the callback that disarms when the last vacuum
+    catches up, and config-entry unload. Home Assistant's state-change unsubscribe is
+    NOT idempotent — the second call raises `ValueError: list.remove(x): x not in
+    list`. That escapes `_async_process_on_unload`, which does not catch, so the entry
+    lands in FAILED_UNLOAD. That state is non-recoverable: `async_reload` skips the
+    re-setup and the integration stays down until Home Assistant itself is restarted.
+
+    Reaching it needs the catch-up to COMPLETE first, which is why nothing saw it: every
+    other test either never arms the listener or never unloads afterwards.
+    """
+    _roborock(hass, monkeypatch, fan_list=None)
+    hass.states.async_set(
+        "select.alfred_mop_mode", "standard",
+        {"options": ["standard", "deep", "deep_plus"]},
+    )
+    hass.states.async_set(
+        "select.alfred_mop_intensity", "off",
+        {"options": ["off", "mild", "standard", "intense"]},
+    )
+    hass.states.async_set("binary_sensor.alfred_water_box_attached", "on")
+    assert await _setup(hass, mock_config_entry) is True
+    await hass.async_block_till_done()
+
+    # The provider finally publishes the one source that was missing, which empties the
+    # watch set and disarms the listener.
+    _roborock(hass, monkeypatch, fan_list=_FAN_LIVE)
+    await hass.async_block_till_done()
+    assert (get_adapter_config(_VAC) or {}).get("_pending_live_reads") == [], (
+        "the catch-up must have completed, or this test is not exercising the bug"
+    )
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id), (
+        "unload raised — the handle was unsubscribed twice"
+    )
+    await hass.async_block_till_done()
+    assert mock_config_entry.state is not ConfigEntryState.FAILED_UNLOAD

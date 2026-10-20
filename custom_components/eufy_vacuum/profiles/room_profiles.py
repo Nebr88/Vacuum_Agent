@@ -273,10 +273,30 @@ def default_setting_values(
             continue
         defaults[field] = str(value)
 
-    # Fold the brand's own pass-density field onto the canonical name.
-    axis_field, _ = resolve_axis(vocabulary, "clean_intensity")
-    if axis_field != "clean_intensity" and axis_field in defaults:
-        defaults["clean_intensity"] = defaults.pop(axis_field)
+    # FOLD THE BRAND'S OWN PASS-DENSITY FIELD ONTO THE CANONICAL NAME, and do it
+    # WITHOUT consulting the vocabulary — which is the whole point of this shape.
+    #
+    # ⚠ THIS USED TO ASK `resolve_axis(vocabulary, ...)` AND FOLD ONLY IF THE ANSWER
+    # WAS NON-CANONICAL. That is correct exactly until a caller passes a vocabulary it
+    # has already resolved: the resolver then finds the canonical key the CALLER wrote,
+    # answers "clean_intensity", and the fold is skipped — leaving the brand's own
+    # field name in a dict whose only consumer reads the canonical one. It shipped that
+    # way, and the symptom was the path chip rendering on every Roborock room, the
+    # opposite of the change's purpose, with every test green.
+    #
+    # The profile is the only thing that can answer this, and it is unambiguous: if no
+    # canonical value came out of it, whichever candidate DID is the brand's spelling.
+    # Order-independent, so no caller can defeat it.
+    if "clean_intensity" not in defaults:
+        for candidate in AXIS_FIELD_CANDIDATES.get("clean_intensity", ()):
+            if candidate in defaults:
+                defaults["clean_intensity"] = defaults.pop(candidate)
+                break
+    # Any remaining non-canonical spelling has no reader; shipping it invites the next
+    # consumer to key on a brand's word.
+    for candidate in AXIS_FIELD_CANDIDATES.get("clean_intensity", ()):
+        if candidate != "clean_intensity":
+            defaults.pop(candidate, None)
     return defaults
 
 

@@ -255,3 +255,51 @@ def test_wlr_11_an_unchanged_ladder_declares_no_aliases():
     move: every declared word is still live, so nothing is retired."""
     assert build_positional_aliases(_DECLARED, _DECLARED) == {}
     assert "water_level_aliases" not in _vocabulary(_DECLARED)
+
+
+def test_wlr_12_a_fallback_vocabulary_defers_instead_of_burning_the_key():
+    """[WLR-12] THE DEFECT THE PRE-RELEASE AUDIT CAUGHT, and it made this whole repair
+    a no-op on the install it was written for.
+
+    Adapters read their option lists off the provider's entities, and at the start hook
+    this repair runs from, the provider's coordinator may not have polled. The adapter
+    then falls back to its DECLARED list and says so, by naming the entities it could
+    not read (``_pending_live_reads``).
+
+    Judged against that fallback — Roborock's declared ``off/low/medium/high`` — a Saros
+    10's stored ``medium`` looks perfectly in-vocabulary. Nothing is planned, and the
+    ONE-SHOT key latches having repaired nothing. The real ladder is
+    ``off/mild/standard/intense/extreme``, so the room keeps a value the device rejects,
+    and ``dispatch/manager.py`` then finds nothing rankable and skips the safest-water
+    pre-call entirely — issue #51's wet-mop, with no error anywhere.
+
+    The latch condition must therefore treat "this vocabulary is a guess" as
+    unadjudicated, exactly as it already treats "this adapter declared nothing".
+    """
+    data = _data({"3": _room(water_level="medium")})
+    fallback = _config(
+        vocabulary={"water_level_options": _RB_WATER},   # the DECLARED ladder
+        _pending_live_reads=["select.saros_mop_intensity"],
+    )
+
+    result = migrate_water_level_residue(data=data, get_config=_getter(fallback))
+
+    assert result["latched"] is False, (
+        "latched against a vocabulary the adapter had just declared to be a fallback"
+    )
+    assert WATER_RESIDUE_MIGRATION_KEY not in data.get("migrations", {})
+    assert _water_of(data) == "medium", "nothing should be rewritten from a guess"
+
+
+def test_wlr_13_the_same_room_repairs_once_the_real_ladder_arrives():
+    """[WLR-13] The other arm: deferring is only correct if the work later happens.
+
+    Without this, WLR-12 is satisfied by a repair that defers forever.
+    """
+    data = _data({"3": _room(water_level="medium")})
+    live = _config()  # the Saros ladder, nothing pending
+
+    result = migrate_water_level_residue(data=data, get_config=_getter(live))
+
+    assert result["latched"] is True
+    assert _water_of(data) == "standard"

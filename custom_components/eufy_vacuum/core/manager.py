@@ -5900,6 +5900,20 @@ class EufyVacuumManager:
         # assert `clean_intensity_options` is absent from Roborock's declared block
         # (test_adapter.py [:343], [:556]), and that remains true — the brand still
         # declares its own word. This resolves for the card only.
+        # ⚠ ORDER IS LOAD-BEARING, AND THE OBVIOUS ORDER IS WRONG.
+        #
+        # Derive the defaults from the BRAND'S OWN vocabulary first, BEFORE resolving
+        # the canonical key into the copy. `default_setting_values` folds the brand's
+        # pass-density field onto the canonical name by asking `resolve_axis` which
+        # field this brand uses — so if the canonical key has already been inserted,
+        # the resolver finds the key we just wrote, answers "clean_intensity", and the
+        # fold never runs. The result shipped `path_type` (which nothing reads) and NO
+        # `clean_intensity`, so the card could not tell a Roborock room was at its
+        # default and the path chip rendered on every room — the opposite of this
+        # change's whole purpose, on the one brand it was written for.
+        _setting_defaults = default_setting_values(
+            _adapter_cfg.get("room_profiles"), _adapter_cfg.get("vocabulary")
+        )
         _, _ci_options = resolve_axis(adapter_vocabulary, "clean_intensity")
         if _ci_options:
             adapter_vocabulary.setdefault("clean_intensity_options", _ci_options)
@@ -5909,9 +5923,6 @@ class EufyVacuumManager:
         # test never fired — and `"standard"` for the path, right for two brands by luck
         # and wrong for Eufy, where `standard` is a RETIRED value. Core owns the KEY,
         # never the brand's word (f/eufy_is_not_the_default).
-        _setting_defaults = default_setting_values(
-            _adapter_cfg.get("room_profiles"), adapter_vocabulary
-        )
 
         # Per-room editor capability hints surfaced to the card:
         # - max_clean_passes: upper bound for the passes chips (the dispatch

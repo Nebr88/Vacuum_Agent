@@ -34,9 +34,12 @@ import pytest
 from custom_components.eufy_vacuum.adapters.roborock.vocabulary import (
     PATH_TYPE_OPTIONS as _RB_PATH_TYPES,
 )
+from tests.brand_catalogs import EUFY_BLOCK, ROBOROCK_BLOCK
+
 from custom_components.eufy_vacuum.profiles.room_profiles import (
     AXIS_FIELD_CANDIDATES,
     VOCABULARY_FIELDS,
+    default_setting_values,
     resolve_axis,
 )
 
@@ -149,3 +152,51 @@ def test_ax_7_every_candidate_is_a_real_vocabulary_field():
             assert candidate in VOCABULARY_FIELDS, (
                 f"{axis} -> {candidate!r} is not a vocabulary field"
             )
+
+
+def test_ax_8_the_fold_survives_a_caller_that_already_resolved_the_axis():
+    """[AX-8] ORDER IS LOAD-BEARING, and the obvious order silently defeats the fold.
+
+    `default_setting_values` folds a brand's own pass-density field onto the canonical
+    name by asking `resolve_axis` which field this brand uses. A caller that has ALREADY
+    inserted the canonical key into the vocabulary it then passes here gets a resolver
+    answer of "clean_intensity" — the key the caller just wrote — so the fold never
+    runs and the result carries `path_type`, which no consumer reads.
+
+    That shipped: `core/manager.py` built the snapshot's vocabulary copy, inserted
+    `clean_intensity_options` into it, and derived the defaults from that same copy. The
+    card then could not tell a Roborock room was at its default, so the path chip
+    rendered on EVERY room — the exact opposite of the change's purpose, on the one
+    brand it was written for, with every test green.
+
+    The left column is the brand's own declaration; the right is a caller that resolved
+    first. Both must produce the canonical key.
+    """
+    brand_declared = {"path_type_options": _RB_PATH_TYPES}
+    already_resolved = {
+        "path_type_options": _RB_PATH_TYPES,
+        "clean_intensity_options": _RB_PATH_TYPES,
+    }
+
+    for vocabulary, label in ((brand_declared, "as declared"),
+                              (already_resolved, "caller resolved first")):
+        defaults = default_setting_values(ROBOROCK_BLOCK, vocabulary)
+        assert "clean_intensity" in defaults, f"{label}: the fold did not run"
+        assert "path_type" not in defaults, (
+            f"{label}: left the brand's own field name, which nothing reads"
+        )
+        assert defaults["clean_intensity"] == _RB_DEFAULT_PATH
+
+
+def test_ax_9_a_canonical_brand_is_unaffected_by_the_fold():
+    """[AX-9] Eufy and Dreame name the axis canonically, so there is nothing to fold —
+    and the fold must not disturb them. Without this, AX-8 could be satisfied by always
+    renaming something."""
+    defaults = default_setting_values(
+        EUFY_BLOCK, {"clean_intensity_options": _EUFY_INTENSITY}
+    )
+    assert defaults["clean_intensity"] == EUFY_BLOCK["builtins"][EUFY_BLOCK["default_profile"]]["clean_intensity"]
+    assert "path_type" not in defaults
+
+
+_RB_DEFAULT_PATH = ROBOROCK_BLOCK["builtins"][ROBOROCK_BLOCK["default_profile"]]["path_type"]

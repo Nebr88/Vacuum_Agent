@@ -186,8 +186,35 @@ def _unadjudicated_targets(*, data: dict[str, Any], get_config) -> list[str]:
             for bucket in maps.values()
         ):
             continue
-        block = (get_config(vacuum_entity_id) or {}).get("room_profiles")
+        config = get_config(vacuum_entity_id) or {}
+        block = config.get("room_profiles")
         if not (isinstance(block, dict) and block):
+            pending.append(vacuum_entity_id)
+            continue
+
+        # A FALLBACK VOCABULARY IS NOT AN ADJUDICABLE ONE — and this is the gap that
+        # made `room_water_level_residue_v1` a no-op on the install it was written for.
+        #
+        # The test above asks only whether `room_profiles` is a non-empty dict. That is
+        # a STATIC declaration: it is always present, so it answers "adjudicable" even
+        # while the brand is openly saying its vocabulary is a guess. Adapters now read
+        # their option lists off the provider's entities, and at the start hook these
+        # repairs run from, the provider's coordinator may not have polled — so the
+        # adapter falls back to its declared list and SAYS SO, by naming the entities
+        # it could not read (`_pending_live_reads`).
+        #
+        # Judged against the fallback, a Saros 10's stored `water_level: "medium"` looks
+        # perfectly in-vocabulary (the declared ladder is off/low/medium/high), nothing
+        # is planned, and the one-shot key latches having repaired nothing. The real
+        # ladder is off/mild/standard/intense/extreme, so that room is left holding a
+        # value the device rejects — and `dispatch/manager.py` then finds NOTHING
+        # rankable and skips the safest-water pre-call entirely, which is issue #51's
+        # wet-mop with no error anywhere.
+        #
+        # Deferring is free: the latch already declines to record while any target is
+        # unadjudicated, and the catch-up re-runs these repairs the moment the device's
+        # own vocabulary arrives.
+        if config.get("_pending_live_reads"):
             pending.append(vacuum_entity_id)
     return pending
 
