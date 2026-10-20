@@ -77,6 +77,7 @@ from .core.maintenance_entity_registry_migration import (
 )
 from .core.pause_timeout_migration import migrate_pause_timeout_defaults
 from .rooms.vocabulary_migration import (
+    migrate_fan_speed_residue,
     migrate_path_type_residue,
     migrate_room_vocabulary,
     migrate_water_level_residue,
@@ -637,6 +638,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         migrate_water_level_residue(
                             data=manager.data, get_config=get_adapter_config
                         ),
+                        migrate_fan_speed_residue(
+                            data=manager.data, get_config=get_adapter_config
+                        ),
                     ]
                     if any(r["changes"] for r in _res):
                         await manager.async_save()
@@ -816,6 +820,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     _water_residue_migration = migrate_water_level_residue(
                         data=manager.data, get_config=get_adapter_config,
                     )
+                    # Suction is read off the device too, so a rung this machine
+                    # does not publish is retired for it — no aliases, because fan
+                    # ladders differ in MEMBERSHIP rather than spelling.
+                    _fan_residue_migration = migrate_fan_speed_residue(
+                        data=manager.data, get_config=get_adapter_config,
+                    )
                     # Rides the same start hook, but is INDEPENDENT of it: this one
                     # needs no adapter declaration to judge a target, so it cannot be
                     # deferred by a provider that has not finished setting up, and a
@@ -828,6 +838,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     _rename_migration = migrate_maintenance_component_renames(data=manager.data)
                     if (_migration["changes"] or _residue_migration["changes"]
                             or _water_residue_migration["changes"]
+                            or _fan_residue_migration["changes"]
                             or _pause_migration["changes"]
                             or _rename_migration["changes"]):
                         await manager.async_save()

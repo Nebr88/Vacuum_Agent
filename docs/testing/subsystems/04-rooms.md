@@ -273,6 +273,35 @@ two switch-attribute cards were fine. And the resolution is written into a COPY 
 Roborock's declared block, and that stays true, because the brand still declares its
 own word.
 
+### Suction residue, and the capital letter that would have cost a rung (2026-10-19)
+
+Suction is read off the device now, so a rung we used to declare and a given machine
+does not have — `gentle` on a Saros 10 — is retired for it. Left alone, the per-room
+`options_key` filter silently drops the value and that room runs at whatever suction
+the device happens to be on. `room_fan_speed_residue_v1` repairs it, under its own key
+for the same reason the siblings have theirs.
+
+**NO ALIASES, and the asymmetry with water is deliberate.** Water's two ladders are the
+SAME rungs under different words, so position carries the meaning and a positional map
+is honest. Fan ladders differ in MEMBERSHIP — a Saros has `max_plus` and no `gentle`,
+an S6 the reverse — so there is no position to map, and inventing one would move a
+chosen suction somewhere the user never asked for. A rung the device lacks falls back
+to the brand's default.
+
+**The planner now treats case as a spelling, not an intent — and this is what made a
+fan repair safe to add at all.** The membership test is exact, so a stored `"Max"`
+against a declared `"max"` read as out-of-vocabulary and fell through to the
+default-profile reset: the FASTEST suction becoming the brand's default, from
+capitalisation, with nothing reporting it. It is live — `vacuum.ivy` room 24 holds
+exactly that value — which is why the pre-release audit flagged adding a fan repair as
+risky before this existed. `_alias_target` had always matched case-insensitively for
+the same reason; only the reset path did not.
+
+| id | what it holds |
+|---|---|
+| `PTR-12` | a casing difference is normalised to the brand's own casing, not reset — the rung survives |
+| `PTR-13` | a genuinely absent rung still falls back to the default, so PTR-12 cannot be satisfied by never resetting anything |
+
 ### The `water_level` residue — the same shape, with a sharper edge (added 2026-10-19)
 
 `adapters/roborock` now READS its water ladder off `select.<obj>_mop_intensity` instead

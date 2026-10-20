@@ -297,3 +297,55 @@ def test_ptr_11_every_residue_field_is_a_real_vocabulary_axis():
     filter is silence, which is why it needs a test of its own rather than a comment.
     """
     assert set(RESIDUE_FIELDS) <= set(VOCABULARY_FIELDS)
+
+
+# ---------------------------------------------------------------------------
+# Case is a spelling, not an intent (the shared planner)
+# ---------------------------------------------------------------------------
+
+def test_ptr_12_a_casing_difference_is_normalised_not_reset():
+    """[PTR-12] THE CLEANING REDUCTION A CAPITAL LETTER WOULD HAVE CAUSED.
+
+    The planner's membership test is exact, so a stored ``"Max"`` against a declared
+    ``"max"`` reads as out-of-vocabulary and falls through to the default-profile
+    reset — turning the FASTEST suction into the brand's default. Nobody chose that,
+    and nothing would have reported it.
+
+    It is live, not hypothetical: ``vacuum.ivy`` room 24 holds ``fan_speed: "Max"``
+    today, which is why the pre-release audit flagged a fan repair as risky before this
+    existed. Case is a spelling; the rung is the intent. ``_alias_target`` already
+    matched case-insensitively for exactly this reason — only this path did not.
+    """
+    data = _data({"16": _room(fan_speed="Max")})
+
+    planned = plan_room_vocabulary_migration(
+        data=data, get_config=_getter(_config()), fields=("fan_speed",),
+    )
+
+    assert len(planned) == 1
+    change = planned[0]
+    assert change["old"] == "Max"
+    assert change["new"] == "max", "reset to the default instead of keeping the rung"
+    # And it is the DECLARED casing, not merely lowercased by luck.
+    assert change["new"] in {o["value"] for o in _RB_FAN_SPEEDS}
+
+
+def test_ptr_13_a_genuinely_absent_rung_still_falls_back():
+    """[PTR-13] The other arm: normalisation must not swallow a real retirement.
+
+    ``gentle`` is a rung an S6 has and a Saros does not. No casing of it appears in
+    that device's list, so it is genuinely retired and must reach the default — not be
+    quietly kept. Without this, PTR-12 could be satisfied by never resetting anything.
+    """
+    data = _data({"16": _room(fan_speed="gentle")})
+    saros = _config(vocabulary=_rb_vocabulary(
+        fan_speed_options=[{"value": v, "label": v} for v in
+                           ("quiet", "balanced", "turbo", "max", "max_plus")],
+    ))
+
+    planned = plan_room_vocabulary_migration(
+        data=data, get_config=_getter(saros), fields=("fan_speed",),
+    )
+
+    assert len(planned) == 1
+    assert planned[0]["new"] == _RB_BUILTINS[ROBOROCK_BLOCK["default_profile"]]["fan_speed"]

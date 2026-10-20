@@ -311,6 +311,32 @@ def plan_room_vocabulary_migration(
                     if allowed is None or str(room[field]) in allowed:
                         continue
 
+                    # SAME WORD, DIFFERENT CASE IS NOT A RETIRED VALUE.
+                    #
+                    # The membership test above is exact, so a stored `"Max"` against a
+                    # declared `"max"` reads as out-of-vocabulary and falls through to
+                    # the default-profile reset — turning the FASTEST suction into the
+                    # brand's default. That is a cleaning reduction nobody chose,
+                    # produced by capitalisation, and it is live: `vacuum.ivy` room 24
+                    # holds exactly that value today.
+                    #
+                    # Case is a SPELLING, not an intent. Normalise to the brand's own
+                    # casing and keep the rung. `_alias_target` already matches
+                    # case-insensitively for the same reason; only this path did not.
+                    _cased = {str(o).strip().lower(): str(o) for o in allowed}
+                    _match = _cased.get(str(room[field]).strip().lower())
+                    if _match is not None:
+                        planned.append({
+                            "vacuum_entity_id": vacuum_entity_id,
+                            "map_id": str(map_id),
+                            "room_id": str(room_id),
+                            "field": field,
+                            "action": "reset",
+                            "old": room[field],
+                            "new": _match,
+                        })
+                        continue
+
                     # A RETIRED value the brand still declares an alias for keeps its
                     # MEANING — resolve it before considering the default. Without
                     # this, Eufy's "Standard" (the original middle pass density, and
@@ -513,6 +539,14 @@ WATER_RESIDUE_MIGRATION_KEY = "room_water_level_residue_v1"
 WATER_RESIDUE_FIELDS: tuple[str, ...] = ("water_level",)
 
 
+#: Suction is now READ off `vacuum.<obj>`'s own `fan_speed_list` rather than declared
+#: (issue #71), so a machine that does not publish a rung we used to offer retires it —
+#: a Saros 10 has no `gentle`. Its own key, because the sibling keys have already
+#: latched on every install that has seen them.
+FAN_RESIDUE_MIGRATION_KEY = "room_fan_speed_residue_v1"
+FAN_RESIDUE_FIELDS: tuple[str, ...] = ("fan_speed",)
+
+
 def plan_residue_repair(
     *, data: dict[str, Any], get_config, fields: Collection[str]
 ) -> list[dict[str, Any]]:
@@ -550,6 +584,15 @@ def plan_water_level_residue_repair(
     """The ``water_level`` instance of :func:`plan_residue_repair`."""
     return plan_residue_repair(
         data=data, get_config=get_config, fields=WATER_RESIDUE_FIELDS
+    )
+
+
+def plan_fan_speed_residue_repair(
+    *, data: dict[str, Any], get_config
+) -> list[dict[str, Any]]:
+    """The ``fan_speed`` instance of :func:`plan_residue_repair`."""
+    return plan_residue_repair(
+        data=data, get_config=get_config, fields=FAN_RESIDUE_FIELDS
     )
 
 
@@ -621,6 +664,33 @@ def migrate_path_type_residue(
     return _migrate_residue(
         data=data, get_config=get_config, key=RESIDUE_MIGRATION_KEY,
         fields=RESIDUE_FIELDS, label="path_type_residue", force=force,
+    )
+
+
+def migrate_fan_speed_residue(
+    *, data: dict[str, Any], get_config, force: bool = False
+) -> dict[str, Any]:
+    """Repair a stored ``fan_speed`` the device does not offer. Idempotent.
+
+    Issue #71: suction is read off the device now, so a rung we used to declare and
+    this machine does not have — `gentle` on a Saros 10 — is retired for it. Left
+    alone, the per-room `options_key` filter silently drops the value and that room
+    runs at whatever suction the device happens to be on.
+
+    NO ALIASES, DELIBERATELY, and the asymmetry with water is the point. Water's two
+    ladders are the SAME rungs under different words, so position carries the meaning.
+    Fan ladders genuinely differ in membership — a Saros has `max_plus` and no
+    `gentle`; an S6 the reverse — so there is no position to map and inventing one
+    would put a chosen suction somewhere the user never asked for. A rung this device
+    does not have falls back to the brand's default, which is the honest answer.
+
+    The case-normalisation in the planner runs FIRST, so a stored `"Max"` becomes the
+    declared `"max"` rather than being reset — that is a spelling difference, not a
+    retired rung, and `vacuum.ivy` room 24 is the live example.
+    """
+    return _migrate_residue(
+        data=data, get_config=get_config, key=FAN_RESIDUE_MIGRATION_KEY,
+        fields=FAN_RESIDUE_FIELDS, label="fan_speed_residue", force=force,
     )
 
 
