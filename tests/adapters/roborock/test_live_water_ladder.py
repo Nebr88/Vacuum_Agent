@@ -228,3 +228,48 @@ def test_lw_8_a_declared_label_beats_humanisation():
     "Deep+". A test using a token whose two spellings agree would pass either way."""
     assert rbv.humanize_option("deep_plus") == "Deep Plus"
     assert rbv.build_option_list(["deep_plus"]) == [{"value": "deep_plus", "label": "Deep+"}]
+
+
+def test_lw_11_the_profiles_are_retuned_to_the_devices_ladder(monkeypatch, hass):
+    """[LW-11] THE SECOND WRITER. Repairing stored rooms is not enough.
+
+    Both Roborock mop profiles declare ``water_level: "medium"`` — canonical, present
+    on an S6, and ABSENT on a Saros whose ladder is off/mild/standard/intense/extreme.
+    ``apply_room_profile_to_config`` writes the profile's value straight onto the room,
+    so a user applying "Quick" AFTER the one-shot repair had run would put the retired
+    word back. The dispatch filter drops it, the safest-water pre-call then finds
+    nothing rankable and pushes nothing, and the batch runs on whatever the vendor app
+    last set — issue #51's wet-mop, reachable by pressing a button the card offers.
+
+    Found by the pre-release audit. The repair and the declaration must agree, so the
+    same positional alias map is applied to both.
+    """
+    cfg = _register(monkeypatch, hass, options=SAROS_MOP_INTENSITY)
+
+    allowed = {o["value"] for o in cfg["vocabulary"]["water_level_options"]}
+    profiles = cfg["room_profiles"]["builtins"]
+    assert profiles, "no profiles declared — this test would pass vacuously"
+
+    for name, profile in profiles.items():
+        water = profile.get("water_level")
+        if water in (None, ""):
+            continue
+        assert water in allowed, (
+            f"profile {name!r} declares water_level={water!r}, which this device "
+            "does not offer — applying it re-introduces an out-of-vocabulary value"
+        )
+    # The canonical middle rung became the device's middle rung, not something else.
+    assert profiles["vacuum_mop_quick"]["water_level"] == "standard"
+    assert cfg["room_profiles"]["custom_template"]["water_level"] in allowed
+
+
+def test_lw_12_an_unchanged_ladder_leaves_the_profiles_untouched(monkeypatch, hass):
+    """[LW-12] The S6 case: the device publishes the ladder we declared, so there are
+    no aliases and the profiles must come through byte-identical. Without this, LW-11
+    could be satisfied by rewriting profiles on every brand and every model."""
+    cfg = _register(monkeypatch, hass, options=S6_MOP_INTENSITY)
+
+    assert cfg["room_profiles"]["builtins"]["vacuum_mop_quick"]["water_level"] == "medium"
+    assert cfg["room_profiles"]["builtins"] is rbv.ROOM_PROFILES, (
+        "retuned a profile set that did not need it"
+    )

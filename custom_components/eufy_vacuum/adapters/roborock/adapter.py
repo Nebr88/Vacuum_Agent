@@ -63,6 +63,7 @@ from .vocabulary import (
     build_option_list,
     build_positional_aliases,
     build_route_ladder,
+    retune_profiles_to_ladder,
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
     CANCEL_DETECTION_STATES,
@@ -358,6 +359,10 @@ def register_roborock_adapter_for_vacuum(
     _water_aliases = build_positional_aliases(
         [str(o["value"]) for o in WATER_LEVEL_OPTIONS], _water_rank,
     )
+    _retuned_builtins = retune_profiles_to_ladder(ROOM_PROFILES, _water_aliases)
+    _retuned_template = retune_profiles_to_ladder(
+        {"t": CUSTOM_ROOM_PROFILE}, _water_aliases
+    )["t"]
 
     # SUCTION, READ THE SAME WAY — and simpler, because nothing RANKS it.
     #
@@ -1645,9 +1650,17 @@ def register_roborock_adapter_for_vacuum(
             # Absence of an OPTION LIST is a capability statement, per model. Absence
             # from these PROFILES is an axis statement, per brand. Only the second
             # belongs here.
-            "builtins": ROOM_PROFILES,
-            "custom_template": CUSTOM_ROOM_PROFILE,
-            "normalize_defaults": CUSTOM_ROOM_PROFILE,
+            # RETUNED TO THE DEVICE'S OWN LADDER. Both mop profiles declare
+            # `water_level: "medium"`, which exists on an S6 and does NOT exist on a
+            # Saros (off/mild/standard/intense/extreme). Repairing stored rooms alone
+            # leaves the PROFILES as a second writer: applying one would put the
+            # retired word straight back, the dispatch filter would drop it, and the
+            # safest-water pre-call would find nothing rankable — #51's wet-mop,
+            # reachable by pressing a button the card offers. Inert, by identity, when
+            # the device publishes the ladder we declared.
+            "builtins": _retuned_builtins,
+            "custom_template": _retuned_template,
+            "normalize_defaults": _retuned_template,
             "floor_type_water_defaults": RB_FLOOR_TYPE_WATER_DEFAULTS,
             "floor_type_fan_defaults": RB_FLOOR_TYPE_FAN_DEFAULTS,
             # DECLARED EMPTY, not absent. Roborock has no retired profile names of

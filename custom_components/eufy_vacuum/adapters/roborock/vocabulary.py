@@ -683,3 +683,30 @@ def build_route_ladder(values) -> tuple[list[dict], list[str]]:
     ordered.extend(by_value.values())  # rungs we have no position for, device order
     rank = [str(o["value"]) for o in ordered if str(o["value"]) in PATH_TYPE_RANK_ORDER]
     return ordered, rank
+
+
+def retune_profiles_to_ladder(profiles, aliases, field: str = "water_level"):
+    """Rewrite a profile value this device's own ladder has retired.
+
+    THE PROFILES ARE A SECOND WRITER, and repairing only stored rooms leaves them.
+    Both mop profiles declare ``water_level: "medium"``, which is Roborock's canonical
+    word and exists on an S6 — and does NOT exist on a Saros 10, whose ladder is
+    off/mild/standard/intense/extreme. ``apply_room_profile_to_config`` writes the
+    profile's value straight onto the room, so a user applying "Quick" after the
+    one-shot repair had run would put an out-of-vocabulary value back. The dispatch
+    filter then drops it and the safest-water pre-call finds nothing rankable, which
+    is issue #51's wet-mop — reachable by pressing a button the card offers.
+
+    The same positional alias map the stored-room repair uses, applied to the
+    DECLARATION, so both writers agree. Empty aliases (the device publishes the ladder
+    we declared, or published nothing) return the profiles unchanged and by identity,
+    so this is inert wherever the vocabulary did not move.
+    """
+    if not aliases:
+        return profiles
+    retuned = {}
+    for name, profile in (profiles or {}).items():
+        value = str((profile or {}).get(field, "")).strip().lower()
+        target = aliases.get(value)
+        retuned[name] = {**profile, field: target} if target else profile
+    return retuned

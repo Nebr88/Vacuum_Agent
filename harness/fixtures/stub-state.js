@@ -145,6 +145,22 @@ export function makeStubState({ overrides = {}, record = null, real = null } = {
     dockStatusLabel:   () => "Charging",
     isMobileViewport:  () => false,
     isMapViewActive:   () => false,
+
+    // A PREDICATE MUST NOT FALL THROUGH TO THE NULL-OBJECT. Absorption returns a
+    // CALLABLE, TRUTHY object, which is a sane default for "give me a value" and
+    // exactly backwards for "is this true?" — every `if (state.somePredicate())`
+    // takes the true branch.
+    //
+    // This one decides whether a per-room setting chip is at its brand default and
+    // should therefore be HIDDEN. Absorbed, it hid the suction, path and water chips
+    // in every gallery shot, and three accepted baselines quietly stopped covering
+    // any setting chip at all — a regression blind spot introduced by the fixture, in
+    // the shots whose whole job is to notice chips changing.
+    //
+    // False is the honest stub answer: a fixture room has no brand declaration behind
+    // it, and the production accessor returns false when there is none, so nothing is
+    // claimed to be "at default" and every chip renders and stays covered.
+    isBrandDefaultSetting: () => false,
   };
 
   const base = { ...essentials, ...overrides };
