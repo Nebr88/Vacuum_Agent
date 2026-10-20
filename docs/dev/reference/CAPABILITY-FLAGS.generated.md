@@ -6,7 +6,7 @@ Generated from `custom_components/eufy_vacuum/core/capabilities.py` (`KNOWN_CAPA
 
 | Namespace | Enumerated by | Size | Validated at registration | Consumed by |
 |---|---|--:|---|---|
-| `capabilities` config block | `ADAPTER_CONFIG_SCHEMA['capabilities']['fields']` | 21 | yes - the schema walker checks types and rejects unknown keys | `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/dispatch/manager.py`, `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/room_entities.py` |
+| `capabilities` config block | `ADAPTER_CONFIG_SCHEMA['capabilities']['fields']` | 22 | yes - the schema walker checks types and rejects unknown keys | `custom_components/eufy_vacuum/adapters/registry.py`, `custom_components/eufy_vacuum/core/manager.py`, `custom_components/eufy_vacuum/dispatch/manager.py`, `custom_components/eufy_vacuum/jobs/active_job.py`, `custom_components/eufy_vacuum/room_entities.py` |
 | `capability_hints` config block | `KNOWN_CAPABILITY_HINTS` (a different file) | 13 | yes - `_validate_adapter` rejects any key outside that frozenset | `detect_capabilities()` |
 | `detect_capabilities()` return | the return dict literal | 42 keys, 22 of them `supports_*` | n/a (output, not input) | the per-vacuum capability payload |
 
@@ -22,6 +22,7 @@ The `capabilities` block is fully enumerated in the schema and is never read by 
 | `rooms_unique_per_job` | yes | no | no | - |
 | `supports_active_cleaning_target` | no | no | yes | - |
 | `supports_active_map` | no | no | yes | - |
+| `supports_cleaning_path` | yes | no | no | - |
 | `supports_cleaning_stats` | no | no | yes | - |
 | `supports_custom_room_config` | no | yes | yes | authoritative |
 | `supports_dock_status` | no | no | yes | - |
@@ -51,7 +52,7 @@ The `capabilities` block is fully enumerated in the schema and is never read by 
 | `zone_min_side_m` | yes | no | no | - |
 
 - **Detected-only (8)** - emitted by `detect_capabilities()`, declarable in neither config namespace: `supports_active_cleaning_target`, `supports_active_map`, `supports_cleaning_stats`, `supports_dock_status`, `supports_rooms`, `supports_segments`, `supports_task_status`, `supports_work_mode`.
-- **Config-block-only (10)** - declarable in the `capabilities` block, never emitted by detection and not a valid hint: `honors_clean_order`, `position_lock_reliable`, `rooms_unique_per_job`, `supports_room_profiles`, `supports_zone_repeat`, `zone_max`, `zone_max_area_m2`, `zone_max_side_m`, `zone_min_area_m2`, `zone_min_side_m`.
+- **Config-block-only (11)** - declarable in the `capabilities` block, never emitted by detection and not a valid hint: `honors_clean_order`, `position_lock_reliable`, `rooms_unique_per_job`, `supports_cleaning_path`, `supports_room_profiles`, `supports_zone_repeat`, `zone_max`, `zone_max_area_m2`, `zone_max_side_m`, `zone_min_area_m2`, `zone_min_side_m`.
 - **In both config namespaces (9)**: `supports_edge_mopping`, `supports_empty_dust`, `supports_goto`, `supports_mop_dry`, `supports_mop_features`, `supports_mop_wash`, `supports_path_control`, `supports_water_control`, `supports_zone_clean`.
 - **Hint-only (4)** - a valid `capability_hints` key with no `capabilities` block counterpart: `has_attribute_rooms`, `supports_custom_room_config`, `supports_passes`, `supports_room_clean`.
 
@@ -118,6 +119,7 @@ currently in the state machine and usable now.
 | `honors_clean_order` | - | `False` | `True` | - | - | - |
 | `position_lock_reliable` | `False` | `False` | - | - | - | - |
 | `rooms_unique_per_job` | `True` | `False` | - | - | - | - |
+| `supports_cleaning_path` | - | `_route_axis` | - | - | - | - |
 | `supports_custom_room_config` | - | - | - | - | - | - |
 | `supports_edge_mopping` | `caps.get('supports_edge_mopping', True)` | `False` | `False` | - | - | `False` |
 | `supports_empty_dust` | `caps.get('supports_empty_dust', False)` | `dock_collectable` | `caps.get('supports_empty_dust', station_collectable)` | `model_family in {'x10', 'x8', 'l60', 'l50'}` | - | `station_collectable` |

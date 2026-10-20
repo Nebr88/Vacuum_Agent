@@ -753,6 +753,18 @@ def register_roborock_adapter_for_vacuum(
         # Per-model, not brand-wide: the S6 has no path/route axis, but better models
         # do — see model_catalog.has_path_control for why every entry is False today.
         "supports_path_control": _route_axis,
+        # ⚠ A DIFFERENT CAPABILITY FROM THE LINE ABOVE, despite the names.
+        # `supports_path_control` is read by `dispatch/manager.py::dispatch_goto` as
+        # GO-TO ("declares path control (go-to) unsupported"); this one is the
+        # pass-density axis the card calls Cleaning Path. They were one flag, which is
+        # how a mop-route select being unavailable came to gate go-to — inert today
+        # only because this brand declares no goto service, so the earlier guard
+        # catches first. Separated so neither can speak for the other.
+        #
+        # DERIVED, not guessed: `_route_axis` comes from whether this device's own
+        # mop-route select carries a usable value. A user may override it — see
+        # `core/manager.py::set_vacuum_capability` — but this brand actually knows.
+        "supports_cleaning_path": _route_axis,
         # Declared False in the config capabilities block too (see ~:571). It must ALSO be
         # a hint: the room payload gate reads the runtime-detected capabilities payload
         # (manager.get_vacuum_capabilities -> data["capabilities"]), not the config block,
@@ -1434,6 +1446,18 @@ def register_roborock_adapter_for_vacuum(
             # The path/route axis is per-MODEL though, so read the catalog rather than
             # baking the S6's answer into the brand.
             "supports_path_control": _route_axis,
+        # ⚠ A DIFFERENT CAPABILITY FROM THE LINE ABOVE, despite the names.
+        # `supports_path_control` is read by `dispatch/manager.py::dispatch_goto` as
+        # GO-TO ("declares path control (go-to) unsupported"); this one is the
+        # pass-density axis the card calls Cleaning Path. They were one flag, which is
+        # how a mop-route select being unavailable came to gate go-to — inert today
+        # only because this brand declares no goto service, so the earlier guard
+        # catches first. Separated so neither can speak for the other.
+        #
+        # DERIVED, not guessed: `_route_axis` comes from whether this device's own
+        # mop-route select carries a usable value. A user may override it — see
+        # `core/manager.py::set_vacuum_capability` — but this brand actually knows.
+        "supports_cleaning_path": _route_axis,
             "supports_edge_mopping": False,
             # ⚠ "No dock" IS THE S6's ANSWER, DECLARED AT BRAND LEVEL, AND IT WINS.
             #

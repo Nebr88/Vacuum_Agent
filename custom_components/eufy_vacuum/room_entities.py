@@ -369,6 +369,16 @@ class EufyVacuumRoomEntity(Entity):
             # dropped — nothing read it, and an unread declaration is the very shape
             # (RNQ433CB) this change exists to remove.
             "clean_intensity_options": _clean_intensity_options,
+            # CAN this vacuum vary its cleaning path at all? True/False when somebody
+            # knows — the USER's answer first, then what the brand DERIVED — and None
+            # when nobody has established it. The card must treat None as "show", not
+            # as False: denying a control on no evidence is the defect this resolves.
+            #
+            # NOT `supports_path_control`, which dispatch reads as GO-TO.
+            "supports_cleaning_path": self.manager.resolve_vacuum_capability(
+                vacuum_entity_id=self._vacuum_entity_id,
+                capability="supports_cleaning_path",
+            ),
             # Continuous water axis (Dreame wetness 1..32) — a brand declares this OR
             # water_level_options; the card branches slider-vs-chips. None when enum-shaped.
             "water_level_range": _adapter_vocab.get("water_level_range"),

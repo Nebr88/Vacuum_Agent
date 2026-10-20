@@ -223,3 +223,37 @@ The remaining per-module gaps are within the held ceiling: `error_tracker.py`
 (87%) and `water_amendment.py` (92%) are short of the others only on defensive
 except/guard paths; `capabilities.py` (95%), `charging.py` (100%),
 `run_state.py` (100%) and `storage.py` (100%) are effectively complete.
+
+### The flag the user owns — `test_user_capability.py` (added 2026-10-19)
+
+**Some capabilities we DERIVE and some we GUESSED, and they were stored as the same
+value.** Roborock answers "can this vacuum vary its cleaning path?" from whether the
+device's own mop-route select carries a usable value — knowledge. Eufy answered it with
+`model_family in {"x10", "x8"}`: a conservative stand-in, made when nobody had checked
+the other models, for knowledge that was never gathered. Read as a plain boolean, that
+guess **denies a control to hardware that may well have it**.
+
+So the flag moves to the person who can see the machine (`set_vacuum_capability`), and
+"nobody has established this" becomes representable. `resolve_vacuum_capability` returns
+the user's answer, else what the brand derived, else `None` — and a consumer must test
+`is False`, because collapsing `None` reinstates the defect.
+
+**The name is deliberately not `supports_path_control`.** `dispatch/manager.py::
+dispatch_goto` reads that one as GO-TO support, and Roborock had been populating it from
+the mop-route select — so an unavailable select could have gated go-to. Inert only
+because that brand declares no goto service and the earlier guard catches first. Two
+capabilities now have two names.
+
+| id | what it holds |
+|---|---|
+| `UC-1` | "nobody knows" is `None`, not `False` |
+| `UC-2` | a brand's derived answer is used when the user is silent |
+| `UC-3` | the user wins, **in both directions** — False→True is the headline, True→False lets someone switch off a control their device rejects |
+| `UC-4` | clearing hands the question back to detection, so a wrong answer is never a trap |
+| `UC-5` | only allowlisted capabilities are user-answerable — without it this is a back door for overriding hardware facts |
+| `UC-6` | the answer is durable: the per-vacuum record, **not** the stored adapter config, which `config_loader.py` documents as a flip-flop that reverts at the next restart |
+
+All four behavioural ablations redden it. The card half is
+`src/state/supports-cleaning-path.test.mjs` (`SCP-1..4`), which pins the tristate and
+the `=== false` gate; collapsing `null` to `false` there reddens two of the four.
+

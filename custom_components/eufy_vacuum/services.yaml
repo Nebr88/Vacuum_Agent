@@ -831,6 +831,36 @@ set_pause_timeout_settings:
           step: 1
           mode: box
 
+set_vacuum_capability:
+  name: Set vacuum capability
+  description: >
+    Record what YOU know your vacuum can do, for the few capabilities Vacuum Agent
+    cannot reliably detect. Your answer wins over the integration's own guess.
+    Omit "supported" to clear your answer and hand the question back to detection.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    capability:
+      name: Capability
+      required: true
+      description: >
+        supports_cleaning_path - whether this vacuum can vary its cleaning path
+        (pass density). This is NOT go-to support, which is supports_path_control.
+      selector:
+        select:
+          options:
+            - supports_cleaning_path
+    supported:
+      name: Supported
+      required: false
+      description: Leave empty to clear your answer.
+      selector:
+        boolean:
+
 get_upkeep_snapshot:
   name: Get upkeep snapshot
   description: >

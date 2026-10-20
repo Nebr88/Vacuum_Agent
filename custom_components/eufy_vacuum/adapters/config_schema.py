@@ -1765,6 +1765,11 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "supports_mop_features": {"type": "bool", "required": False},
             "supports_water_control": {"type": "bool", "required": False},
             "supports_path_control": {"type": "bool", "required": False},
+            # The pass-density axis the card calls Cleaning Path — NOT the go-to flag
+            # above, which dispatch_goto reads. A brand declares this only when it can
+            # DERIVE it; otherwise it stays absent, which means "nobody established
+            # this" and is a third state the card must not collapse to False.
+            "supports_cleaning_path": {"type": "bool", "required": False},
             "supports_goto": {"type": "bool", "required": False},
             "supports_edge_mopping": {"type": "bool", "required": False},
             "supports_mop_wash": {"type": "bool", "required": False},

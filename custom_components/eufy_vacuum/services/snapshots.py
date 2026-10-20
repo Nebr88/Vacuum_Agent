@@ -24,6 +24,7 @@ from ..const import (
     SERVICE_GET_MAINTENANCE_SOURCE_CANDIDATES,
     SERVICE_GET_UPKEEP_SNAPSHOT,
     SERVICE_SET_PAUSE_TIMEOUT_SETTINGS,
+    SERVICE_SET_VACUUM_CAPABILITY,
 )
 from ._common import (
     VACUUM_MAP_SCHEMA,
@@ -44,6 +45,7 @@ SERVICES = (
     SERVICE_GET_MAINTENANCE_SOURCE_CANDIDATES,
     SERVICE_GET_PAUSE_TIMEOUT_SETTINGS,
     SERVICE_SET_PAUSE_TIMEOUT_SETTINGS,
+    SERVICE_SET_VACUUM_CAPABILITY,
 )
 
 
@@ -55,6 +57,37 @@ _PAUSE_TIMEOUT_SETTINGS_SCHEMA = vol.Schema(
         ),
     }
 )
+
+
+_SET_VACUUM_CAPABILITY_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("capability"): cv.string,
+        # Optional, and absent means CLEAR — hand the question back to detection.
+        # A user who answers wrongly must not be stuck with it.
+        vol.Optional("supported"): vol.Any(cv.boolean, None),
+    }
+)
+
+
+async def _handle_set_vacuum_capability(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Record the user's answer about what their vacuum can do.
+
+    Some capabilities we DERIVE and some we GUESS, and the two have been stored as the
+    same value — a model-family guess reading as False denies a feature to hardware
+    that has it. This lets the person who can actually see the machine settle it.
+    """
+    data = resolved_call_data(hass, call)
+    vacuum_entity_id = data["vacuum_entity_id"]
+    require_managed_vacuum(hass, vacuum_entity_id)
+    manager = get_manager(hass)
+    result = manager.set_vacuum_capability(
+        vacuum_entity_id=vacuum_entity_id,
+        capability=data["capability"],
+        supported=data.get("supported"),
+    )
+    await manager.async_save()
+    return result
 
 
 async def _handle_get_dashboard_snapshot(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -150,6 +183,9 @@ def register(hass: HomeAssistant) -> None:
     async def set_pause_timeout_settings(call: ServiceCall) -> dict:
         return await _handle_set_pause_timeout_settings(hass, call)
 
+    async def set_vacuum_capability(call: ServiceCall) -> dict:
+        return await _handle_set_vacuum_capability(hass, call)
+
     hass.services.async_register(
         DOMAIN, SERVICE_GET_DASHBOARD_SNAPSHOT, get_dashboard_snapshot,
         schema=VACUUM_MAP_SCHEMA, supports_response=True,
@@ -169,4 +205,8 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_PAUSE_TIMEOUT_SETTINGS, set_pause_timeout_settings,
         schema=_PAUSE_TIMEOUT_SETTINGS_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_VACUUM_CAPABILITY, set_vacuum_capability,
+        schema=_SET_VACUUM_CAPABILITY_SCHEMA, supports_response=True,
     )

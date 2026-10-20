@@ -345,6 +345,26 @@ export function applyLearningState(proto) {
   };
 
   /**
+   * Can this vacuum vary its cleaning path (pass density) at all?
+   *
+   * THREE STATES, and the third one is the point: `true` / `false` when somebody
+   * knows — the USER's own answer first, then whatever the brand could DERIVE from
+   * the device — and `null` when nobody has established it.
+   *
+   * Unlike `supportsEdgeMopping` this does NOT collapse the unknown case, because the
+   * two are not the same question. Edge mopping has a sensible default; this one was
+   * being answered by a model-family GUESS that read as False, which denies a control
+   * to hardware that may well have it. A caller must therefore test `=== false` and
+   * show the control otherwise.
+   *
+   * NOT `supports_path_control`, which the backend's dispatcher reads as GO-TO.
+   */
+  proto.supportsCleaningPath = function () {
+    const v = this.dashboardSnapshot()?.supports_cleaning_path;
+    return v === undefined || v === null ? null : Boolean(v);
+  };
+
+  /**
    * The vacuum's provider setting-select entity-ids, resolved by the backend from
    * the adapter's `settings_selects` (existence-checked). Keyed by setting name
    * (fan_speed / clean_mode / clean_intensity / water_level / …). The zone panel

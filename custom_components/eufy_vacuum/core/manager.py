@@ -1223,6 +1223,74 @@ class EufyVacuumManager:
             "pause_timeout_minutes_default": default_minutes,
         }
 
+    #: Capabilities a USER may answer for, because WE cannot. One entry today, and the
+    #: allowlist is the point: a capability belongs here only when "we don't know" is
+    #: the honest state, not when detection is merely inconvenient.
+    USER_ANSWERABLE_CAPABILITIES: tuple[str, ...] = ("supports_cleaning_path",)
+
+    def set_vacuum_capability(
+        self,
+        *,
+        vacuum_entity_id: str,
+        capability: str,
+        supported: bool | None,
+    ) -> dict[str, Any]:
+        """Record the USER's answer about what their vacuum can do.
+
+        THE FLAG MOVES TO THE PERSON WHO ACTUALLY KNOWS. Every brand here declares
+        ``supports_cleaning_path`` from something it can see — Roborock from whether the
+        mop-route select carries a usable value, which is knowledge; Eufy from a model
+        family list, which is a GUESS standing in for knowledge nobody gathered. Those
+        are not the same statement and must not be stored as the same value. A guess
+        that reads as False is how a capability gets denied to hardware that has it.
+
+        ``supported=None`` CLEARS the answer and hands the question back to detection,
+        so a user who answers wrongly is never stuck with it.
+
+        Lives in the per-vacuum record beside ``pause_timeout_minutes_default`` — a
+        durable store. Deliberately NOT the stored adapter config, which would be the
+        obvious home and is documented as a flip-flop: a saved config wins until the
+        next restart, when startup ordering hands the vacuum back to the code adapter
+        (``adapters/config_loader.py``). An answer that silently expires on reboot is
+        worse than no answer, because the user believes they have set it.
+        """
+        if capability not in self.USER_ANSWERABLE_CAPABILITIES:
+            raise ValueError(
+                f"{capability!r} is not user-answerable; allowed: "
+                + ", ".join(self.USER_ANSWERABLE_CAPABILITIES)
+            )
+        bucket = self.data.setdefault("vacuums", {}).setdefault(vacuum_entity_id, {})
+        answers = bucket.setdefault("user_capabilities", {})
+        if supported is None:
+            answers.pop(capability, None)
+        else:
+            answers[capability] = bool(supported)
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "capability": capability,
+            "supported": answers.get(capability),
+            "answered": capability in answers,
+        }
+
+    def resolve_vacuum_capability(
+        self, *, vacuum_entity_id: str, capability: str
+    ) -> bool | None:
+        """``True``/``False`` when somebody knows, ``None`` when nobody does.
+
+        PRECEDENCE: the user's answer, then what the adapter DERIVED. ``None`` is a
+        real third state and callers must treat it as such — it means "not established",
+        and a consumer that collapses it to False denies a capability on no evidence,
+        which is the defect this resolver exists to stop.
+        """
+        bucket = (self.data.get("vacuums") or {}).get(vacuum_entity_id) or {}
+        answers = bucket.get("user_capabilities") or {}
+        if capability in answers:
+            return bool(answers[capability])
+        declared = (
+            (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities") or {}
+        ).get(capability)
+        return None if declared is None else bool(declared)
+
     def set_pause_timeout_settings(
         self,
         *,
@@ -6231,6 +6299,14 @@ class EufyVacuumManager:
             "zone_bounds": zone_bounds,
             "supports_water_control": supports_water_control,
             "supports_edge_mopping": supports_edge_mopping,
+            # Can this vacuum vary its cleaning path at all? True/False when somebody
+            # knows — the USER's answer first, then what the brand DERIVED — and None
+            # when nobody has established it. The card shows the control unless this is
+            # an explicit False, because denying it on no evidence is the defect.
+            # NOT `supports_path_control`, which dispatch reads as GO-TO.
+            "supports_cleaning_path": self.resolve_vacuum_capability(
+                vacuum_entity_id=vacuum_entity_id, capability="supports_cleaning_path",
+            ),
             "honors_clean_order": honors_clean_order,
             "setting_entities": setting_entities,
             "scene_select": scene_select,

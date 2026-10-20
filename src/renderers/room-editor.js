@@ -336,6 +336,18 @@ export function applyRoomEditorRenderer(proto) {
    * a path/intensity concept declare an empty list and this row hides.
    */
   proto._renderIntensityField = function (state, fields) {
+    // ONLY AN EXPLICIT FALSE HIDES THIS. `supports_cleaning_path` is True or False
+    // when somebody knows — the user's own answer first, then what the brand derived
+    // from the device — and null/undefined when nobody has established it. Treating
+    // "not established" as False would deny the control to every brand that has never
+    // been asked, which is exactly how a model-family guess came to speak for hardware
+    // nobody checked. Absent means SHOW.
+    //
+    // What this stops: a Roborock whose mop-route select never carries a usable value
+    // was being offered a Cleaning Path picker that stored a setting dispatch would
+    // never send — a control that lies.
+    if (state.supportsCleaningPath && state.supportsCleaningPath() === false) return "";
+
     const options = state.cleanIntensityOptions();
     if (options.length === 0) return "";
 
