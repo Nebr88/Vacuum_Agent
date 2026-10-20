@@ -8,6 +8,48 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [2.4.0] - 2026-10-19
+
+One report, and the three things it named turned out to be three different problems — plus a fourth nobody had noticed. Thanks to **@NokSamLeong** ([#71](https://github.com/kingchddg901/Vacuum_Agent/issues/71)), who pasted the raw values from their robot rather than a screenshot; two of these were only findable that way.
+
+> **This release changes both the integration and the card**, so it needs a full Home Assistant restart, followed by a hard refresh of the dashboard (Ctrl+Shift+R).
+
+### Fixed
+
+- **Mop intensity never worked on some Roborocks, and nothing said so.** Vacuum Agent offered `off / low / medium / high` on every Roborock, because those are the words one S6 uses. A Saros 10's mop ladder is `off / mild / standard / intense / extreme` — **not one of low, medium or high exists on it**. So every mop-intensity command was rejected, the failure went into the log, the run carried on, and the robot kept whatever the vendor app had last set. The control had never done anything on that hardware.
+
+  Vacuum Agent now reads the ladder from your robot instead of declaring one. If your rooms already hold a word your machine does not have, they are carried onto the equivalent rung rather than reset — the middle rung stays the middle rung, because nobody chose to stop mopping.
+
+- **MAX+ was missing, and so was the reason.** Suction was the same transcript of the same S6 — which has `gentle` and no `max_plus`. It is read from the device now, so MAX+ appears where the robot has it and `gentle` disappears where it does not.
+
+- **The Cleaning Path control has never been shown on a Roborock.** Vacuum Agent stored that setting under one name internally and every part of the card looked for another, so the picker could not render for that brand on any install since the axis was added. The two names now resolve to one.
+
+  **There is a second half you may not have noticed.** Because the setting existed internally with a default, Vacuum Agent was *applying* a route to your robot before every clean — overwriting what you had set in the vendor app, from a value you were never shown. That was stopped. Now that the control is real and visible, the route is applied again — so **the first clean after upgrading will apply the route shown in Vacuum Agent**, which is the brand default unless you change it. Set it once and it is yours.
+
+- **A route value nobody chose, on every Roborock room.** v2.2.4 replaced that setting's options and the repair that should have cleared the old value could not run — it is a one-shot that had already been used on every install predating the change. Those rooms are repaired now, under a key of their own.
+
+- **A capital letter could have cost you suction.** A room holding `Max` against a vacuum that spells it `max` read as an unknown value and would have been reset to the brand default — the fastest suction quietly becoming the middle one. Case is a spelling, not a choice; the setting is kept.
+
+- **Vacuum Agent asked your robot what it offers before the robot was ready to answer.** On a restart it would fall back to the built-in lists, silently, and keep them until something reloaded the integration — so the fixes above would not have applied on most restarts. It now waits for the answer and refreshes the card when it arrives.
+
+### Added
+
+- **`eufy_vacuum.set_vacuum_capability`** — tell Vacuum Agent what your vacuum can do, for the things it cannot reliably detect. Today that is `supports_cleaning_path`: whether your machine can vary its cleaning path at all.
+
+  This exists because some of these answers are measured and some were guesses. Eufy's was `model_family in (x10, x8)` — written when nobody had checked the other models — and a guess that reads as "no" denies a control to hardware that may well have it. Your answer wins over ours, and clearing it hands the question back. A prompt in the card is still to come; for now it is a service call.
+
+### Changed
+
+- **Per-room setting chips in the Rooms view now hide when a setting is at your vacuum's default**, which is what they were always meant to do. The old test used words no shipped brand actually uses, so it never fired and every chip always rendered. On a typical install this removes about a dozen chips; the settings themselves are unchanged.
+
+- **The Cleaning Path picker no longer appears on a vacuum that cannot vary it.** If yours can and Vacuum Agent disagrees, the new service above is how you say so.
+
+### Internal
+
+- `supports_path_control` meant two different things — go-to in the dispatcher, and the cleaning-path axis in the Roborock adapter. An unavailable mop-route select could therefore have refused go-to. They are two capabilities with two names now.
+
+- Three stale claims corrected where they were load-bearing: an adapter comment and a dev doc both asserted the S6 has no mop-route select (it has one, permanently unavailable), and a test's own premise said the same.
+
 ## [2.3.0] - 2026-10-16
 
 Four reports in one week, from four people, and three of them found something underneath what they reported. Thanks to **@abyssc0der** ([#67](https://github.com/kingchddg901/Vacuum_Agent/issues/67)) for coming back when the first fix did not work, **@SilentConfig** ([#68](https://github.com/kingchddg901/Vacuum_Agent/issues/68)), **@kwolfgang** ([#69](https://github.com/kingchddg901/Vacuum_Agent/issues/69)) and **@fhteagle** ([#70](https://github.com/kingchddg901/Vacuum_Agent/issues/70)).
