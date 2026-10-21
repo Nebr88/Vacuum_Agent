@@ -85,6 +85,85 @@ regime-varying rows.
 
 ---
 
+## 1c. The guide holds no words — the backend ships KEYS
+
+⭐ **No live doc stated this before 2026-10-21.** It was documented at
+`docs/retired/dev/13-maintenance-manager.md` and retired without the successor picking it
+up — the same omission §1b records, in the same subsystem. `guide_regime` and
+`__GUIDE_VER__` appeared in no live doc at all; `supported_guide_components` and
+`guide_available` appeared only in the retired one.
+
+**The backend carries no guide text whatsoever.** It resolves which guide applies and emits
+KEY LISTS; the card turns keys into sentences. That is not an optimisation — it is the only
+arrangement that can work, because the guide must render in the READER's language and the
+reader's language is the card's globe, which is per-user and which the backend cannot see.
+The backend knows the HA instance language and nothing else, so two people reading one card
+in different languages would get the same words. See
+[frontend/i18n-system.md § Guide on the card](frontend/i18n-system.md) for that half; this
+section is the resolution chain only.
+
+### The chain, in order
+
+| step | input → output | where |
+|---|---|---|
+| 1 | vacuum → `model_code` | `_get_registry_model_code` — the **upstream device registry**, not our config |
+| 2 | `model_code` → `guide_regime` | `upkeep_catalog["model_key_regimes"]` |
+| 3 | `guide_regime` → `{component: {steps, notes}}` | `upkeep_catalog["key_guides"]`, from `adapters/<brand>/upkeep_keys.py` |
+| 4 | that map → key lists per component | `maintenance/manager.py::_get_upkeep_item_guide` |
+
+`_get_upkeep_model_meta` publishes the regime itself alongside two derived facts:
+`guide_available` (`bool(key_map)`) and `supported_guide_components` (`sorted(key_map)`).
+A model whose code resolves to no regime, or a regime with no entry for the component, gets
+`None` — **there is no prose fallback and no generic guide.** An adapter that declares no
+`key_guides` for a model has no guide, deliberately.
+
+### Three contracts that look like details and are not
+
+- **`frequency` is always `None` on a key guide.** By design: the only cadence the card can
+  state honestly is the device's own countdown, which the sensor-backed rows already show in
+  hours. The card renders a frequency line only when it has one.
+- **`steps` and `notes` stay present and EMPTY beside `steps_keys`/`notes_keys`.** The key
+  fields were added *additively*. A card that has not been rebuilt renders an empty guide
+  instead of raising, and nothing reading the old fields has to tell a key from a sentence.
+  Removing the empty lists is a breaking change to an un-upgraded card.
+- **One body, three times.** `maintenance`, `replacement` and `display` each carry a copy of
+  the same body, because a key guide draws no line between cleaning a part and replacing it —
+  the steps are what a person does with their hands either way.
+
+### Where the words are, and what makes an edit reach a browser
+
+English lives in `src/i18n/guide-keys.js` — 42 authored sentences, **GENERATED**, bundled so
+the resolver always has a synchronous fallback. The other 17 languages are served as
+`custom_components/eufy_vacuum/frontend/guides/keys/<lang>.json` (42 keys each, with
+`index.json` listing the available packs) and lazy-loaded by `src/i18n/guide-loader.js` from
+`/eufy_vacuum/frontend/guides/keys`.
+
+⚠ **`__GUIDE_VER__` is load-bearing and easy to mistake for dead weight.**
+`scripts/build-card.mjs` hashes the whole guides directory (`hashDir(GUIDES_DIR)`) and
+injects it as an esbuild `define`; `guide-loader.js` appends it to every pack URL. Without
+it a translated guide edit does not reach a browser that has already cached the pack. The
+static path is registered `cache_headers=False`, which covers the integration's own serving
+but not what the browser already holds — the two are not substitutes.
+
+⚠ **Do not hand-edit the key packs or `guide-keys.js`.** Run
+`python scripts/sync-dreame-guide-keys.py`; the authoring source is
+`durable/dreame-port-fixture/resources/key-authoring/`.
+
+### What a successor breaks
+
+- Deleting `__GUIDE_VER__` — guide edits silently stop reaching cached browsers.
+- Hand-editing a key pack — overwritten by the next generator run, with no warning.
+- Adding a component to `maintenance_components.py` but not to the regime's `key_guides` —
+  the row renders with no guide and `supported_guide_components` silently omits it. §1b is
+  the same failure on the entity side.
+- Adding a `model_code` without a `model_key_regimes` entry — `guide_available` goes false
+  for that model and nothing says why.
+- "Simplifying" the empty `steps`/`notes` away — breaks un-rebuilt cards.
+- Reintroducing a backend language choice — that is the exact design error the key system
+  exists to undo, and it is not fixable by adding translations.
+
+---
+
 ## 2. The two clamps guard opposite ends, and different causes
 
 The arithmetic is two lines and both are clamped:
@@ -230,6 +309,9 @@ support.
 | "is a job running" is one question | the dispatched question and the floor question differ, and a dock gate needs the second — §3 |
 | a wrongly-offered dock action just runs at a bad time | it also increments a counter the water amendment reads at finalization — §3 |
 | an adapter that omits dock triggers falls back | it gets an empty set and detects nothing, deliberately — §4 |
+| the backend picks the guide's language | it holds no guide words at all; it ships keys and the card resolves them in the reader's globe language — §1c |
+| a model with no guide falls back to a generic one | it gets `None`; there is no prose fallback — §1c |
+| `__GUIDE_VER__` is build noise | it is the cache-bust that makes a translated guide edit reach a browser — §1c |
 
 ---
 

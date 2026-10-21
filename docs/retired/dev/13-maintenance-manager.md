@@ -1,6 +1,28 @@
 # 13 — Maintenance Manager
 
-> **Scope:** Complete implementation reference for `maintenance/manager.py`. Every method, formula, constant, adapter dependency, and storage path is derived directly from the source. A developer should be able to re-implement the maintenance manager from this document alone.
+> ⚠ **RETIRED — do not read this as current.** This document is an archive as of its last
+> audit (2026-07-28) and is excluded from the published site. The live maintenance doc is
+> [41-maintenance-and-the-dock.md](../../dev/41-maintenance-and-the-dock.md). Treat anything
+> here as a historical claim to be checked against the code, never as the contract.
+>
+> **Two things it describes have since changed shape, and both are now documented live:**
+> the per-model component set (declaration vs emission — doc 41 §1b) and the guide system,
+> which moved from per-FAMILY translated prose to i18n KEYS routed by REGIME on 2026-09-12
+> (doc 41 §1c). `guide_family`, `guide_family_name`, `_guide_language` and the prose overlay
+> described below **no longer exist**. The backend now carries no guide words at all.
+>
+> **Its retirement is why doc 41 §1b and §1c exist.** Both were retired with this file and
+> not picked up by the successor; §1b's gap let 876 (model, component) pairs mint entities
+> for hardware the model does not have, and §1c's left the guide chain undocumented for a
+> month. If you are retiring a doc, that is the failure mode to look for.
+
+> **Scope (as written, 2026-07-28):** Complete implementation reference for
+> `maintenance/manager.py`. Every method, formula, constant, adapter dependency, and storage
+> path is derived directly from the source. A developer should be able to re-implement the
+> maintenance manager from this document alone.
+>
+> ⚠ That last sentence is the over-claim this document was retired for; see
+> [history/documentation-epoch-lifecycle.md](../../dev/history/documentation-epoch-lifecycle.md).
 
 ---
 

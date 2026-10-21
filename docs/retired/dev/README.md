@@ -1,4 +1,19 @@
-# Developer Docs — Reading Order
+# Developer Docs — Reading Order  ⚠ RETIRED COPY
+
+> ⚠ **THIS IS THE RETIRED SHELF, NOT THE NOW SHELF. Everything below is wrong about where
+> you are.** This file is the live `docs/dev/README.md` as it stood when this directory was
+> archived; it was moved here wholesale and still describes itself as current. The live
+> index is [`docs/dev/README.md`](../../dev/README.md).
+>
+> Consequences worth knowing before you read on: its relative links resolve to retired
+> siblings where those exist and **dangle where they do not** (`00b-invariants.md`,
+> `00-documentation-standard.md`, `design/…`, `history/…` all dangle from here), and its
+> reading-order table lists retired documents as though they were live. `mkdocs.yml`
+> excludes `retired/` for exactly this reason, so no site reader sees any of it — but
+> anyone reading the repository directly does, which is the only reason this banner exists.
+>
+> Each file here should carry its own banner. If one does not, that is a bug in its
+> retirement, not a sign that it is current.
 
 This is the **NOW shelf** — it answers **"this is how it works."** The other questions
 live elsewhere: **why it is built this way** → [design/](design/shipped/map-state-source.md) ·
