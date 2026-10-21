@@ -153,11 +153,15 @@ but not what the browser already holds — the two are not substitutes.
 
 - Deleting `__GUIDE_VER__` — guide edits silently stop reaching cached browsers.
 - Hand-editing a key pack — overwritten by the next generator run, with no warning.
-- Adding a component to `maintenance_components.py` but not to the regime's `key_guides` —
-  the row renders with no guide and `supported_guide_components` silently omits it. §1b is
-  the same failure on the entity side.
-- Adding a `model_code` without a `model_key_regimes` entry — `guide_available` goes false
-  for that model and nothing says why.
+- Adding a component to `maintenance_components.py` but not to the regime's `emit` — it is
+  not emitted at all. `components_for_model` returns `frozenset(key_guides[regime])`, so the
+  emitted set IS the guide map's keys: no row, no entities, no guide, and nothing says so.
+  This is also why "emitted but guideless" cannot happen — the two cannot disagree. Measured
+  2026-10-21: 0 empty-key rows across eufy 36 / roborock 38 / dreame 88 (regime, component)
+  pairs.
+- Adding a `model_code` without a `model_key_regimes` entry — the regime is UNRESOLVED, so
+  the model keeps only components the device is reporting on and **loses every guide-only
+  card** (`[MGT-3]`), not just its `guide_available` flag.
 - "Simplifying" the empty `steps`/`notes` away — breaks un-rebuilt cards.
 - Reintroducing a backend language choice — that is the exact design error the key system
   exists to undo, and it is not fixable by adding translations.
