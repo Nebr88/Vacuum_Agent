@@ -134,6 +134,8 @@ Never wrong: a record of what was true then.
 - **`reference/`** — generated. Never hand-edit; regenerate with
   `python scripts/check_generated_docs.py --fix`.
   [GENERATION_MAP](reference/GENERATION_MAP.md) — who generates what, and what to edit instead ·
+  [ADAPTER-CONFIG](reference/ADAPTER-CONFIG.generated.md) ·
+  [CAPABILITY-FLAGS](reference/CAPABILITY-FLAGS.generated.md) ·
   [EVENTS](reference/EVENTS.md) ·
   [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) ·
   [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md) ·
