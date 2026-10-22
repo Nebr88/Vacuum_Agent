@@ -6,6 +6,7 @@ commands that gate it, and the four ways a change can look finished when it isn'
 | You changed | Run |
 |---|---|
 | anything under `src/` (the card) | `npm run build:deploy`, then `npm run test:harness` |
+| a build script — `scripts/build-card.mjs` or anything it imports | `npm run build:deploy` — it changes the shipped bundle with no `src/` edit, cache-bust tokens included |
 | anything under `src/styles/` | `npm run check:styles` (also runs first in every build) |
 | Python under `custom_components/eufy_vacuum/` | `scripts\test.bat tests --no-cov` (Windows) · `python -m pytest tests --no-cov` (Linux/macOS) |
 | a locale JSON | `npm run check:i18n` |
