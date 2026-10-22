@@ -12,35 +12,12 @@
  *   node scripts/build-card.mjs --deploy   → custom_components/.../frontend/ (shipped bundle)
  */
 import * as esbuild from "esbuild";
-import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+
+import { hashDir } from "./hash-dir.mjs";
 
 const TEXTURES_DIR = "custom_components/eufy_vacuum/textures";
 const LOCALES_DIR = "custom_components/eufy_vacuum/frontend/locales";
 const GUIDES_DIR = "custom_components/eufy_vacuum/frontend/guides";
-
-// Content hash of a directory tree: name + bytes of every file. Used as a
-// cache-bust token so a CHANGE to the assets yields a new ?v=<hash> URL (browsers
-// + HA's service worker fetch fresh) while UNCHANGED assets keep one stable URL
-// (stay cached, no churn). Same scheme for textures and for the runtime locale
-// catalogs (which are fetched at runtime, NOT bundled, so they need their own bust).
-function hashDir(dir) {
-  const h = createHash("sha1");
-  const walk = (d) => {
-    for (const name of readdirSync(d).sort()) {
-      const p = join(d, name);
-      const st = statSync(p);
-      if (st.isDirectory()) walk(p);
-      else {
-        h.update(name);          // name matters (URL changes if a file is renamed)
-        h.update(readFileSync(p)); // content matters (URL changes if a file is edited)
-      }
-    }
-  };
-  walk(dir);
-  return h.digest("hex").slice(0, 10);
-}
 
 const deploy = process.argv.includes("--deploy");
 const outDir = deploy ? "custom_components/eufy_vacuum/frontend" : "dist";

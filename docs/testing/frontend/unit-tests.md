@@ -250,7 +250,9 @@ The frontend has three separate test tracks, none of them pytest:
 1. **Unit tests** (this doc) — `npm run test:units`, pure logic at the module boundary.
 2. **[Render harness](render-harness.md)** — `npm run test:harness`, the *rendered*
    card headless: smoke, visual regression, CVD, shape marks, intake.
-3. **i18n / sanitiser node tests** — `npm run check:i18n` (`scripts/check-i18n.mjs`,
-   the translate/escape trust-model incl. the double-escape case) and
-   `scripts/sanitize-locale.test.mjs` (the locale-sanitiser browser gates). Both
-   run in `node-tests.yml`.
+3. **i18n / sanitiser / build-script node tests** — `npm run check:i18n`
+   (`scripts/check-i18n.mjs`, the translate/escape trust-model incl. the
+   double-escape case), `scripts/sanitize-locale.test.mjs` (the locale-sanitiser
+   browser gates) and `scripts/hash-dir.test.mjs` (the cache-bust token: HD-1 line
+   endings must not move it, HD-2/HD-6 a binary file's `0D 0A` must not be folded —
+   every shipped texture PNG contains that byte pair). All run in `node-tests.yml`.
