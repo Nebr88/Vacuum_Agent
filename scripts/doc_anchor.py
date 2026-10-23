@@ -278,6 +278,12 @@ def ref_files() -> list[pathlib.Path]:
                 continue
             if p.name == "test_generated_doc_gate.py":
                 continue  # manufactures anchor fixtures; its tokens are data
+            if p.name == "BN-CATALOG.generated.md":
+                # A catalog OF anchors (scripts/gen_bn_catalog.py). Its 177 bare tokens
+                # are data, not references: counted, every BN would read as cited and
+                # the liveness check would be decorative. Rename the catalog and this
+                # exclusion must follow it, or liveness goes blind that day.
+                continue
             out.append(p)
     return out
 

@@ -251,6 +251,34 @@ and unmoved, because a `BN` gives the document something stable to point at. If 
 is ever split, the breaks are the cut lines — already placed, already agreed, already
 cited — and the anchor travels with its section, so the prose does not change.
 
+**When a divider earns one — two tests, either sufficient.** Stated 2026-10-23 from the
+177 already minted, not invented; this section said what and how and never when, and the
+densest class in the tree had no threshold.
+
+- **SUBJECT.** The region can be named with a noun phrase that is a *subject a document
+  could own* — `Battery`, `Setup services`, `Config entry lifecycle`, `Fault policy` — such
+  that a reader searching the docs for that noun would expect to land here. A name that
+  states a *role* fails this test: the tree holds one, `battery/job_metrics.py:148`
+  "Helpers", and it is the weak form — it addresses nothing a document would cite. Name the
+  region by what it holds, not by what it is for.
+- **CUT LINE.** If the file were split tomorrow, the knife would go here and the region
+  would be a file. This is the load-bearing claim one paragraph up, turned into a test.
+
+**What does NOT earn one.** Size. The smallest file carrying BNs is
+`adapters/eufy/constants.py` at 139 lines with **six**, one per subject; the 7,629-line
+`core/manager.py` carries 21, about one per 360 lines. Length is not the signal — subjects
+are. Nor does every rule line: a `# ----` between two functions of one subject is a
+divider, not a break, and gets nothing. Minting there is the dilution `BN` was created to
+keep out of `CN`.
+
+**Where the minted ones are.** Every `BN` in the tree is listed in
+[`reference/BN-CATALOG.generated.md`](../../reference/BN-CATALOG.generated.md) — by file,
+with its line, its name and which documents cite it. Generated and gated, because a
+hand-kept catalog of this size would rot exactly as the per-class counts above did. The
+catalog's own tokens are excluded from the citation scan, so listing an anchor there is not
+citing it; it also surfaces any `BN` with no name line beneath it — the condition the
+pass-time gate otherwise catches only when someone remembers to run it.
+
 ## Prefixes are types, not folders
 
 A prefix should only be introduced when the referenced relationship is meaningfully different.

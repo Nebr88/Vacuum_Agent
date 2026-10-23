@@ -437,6 +437,21 @@ GENERATORS: tuple[Generator, ...] = (
         sources=("scripts/check_generated_docs.py",),
         note="this registry, rendered as the who-generates-what navigation graph",
     ),
+    # GATED, and the reason it exists at all is that it must be. notation-anchors.md once
+    # carried per-class anchor counts by hand and every one was false by the time it was
+    # read. A catalog of ~180 BN tokens kept by hand rots the same way; rendered from
+    # doc_anchor.scan() on every push, a stale one is a red build. Its sources are every
+    # root the anchor scanner reads (a new BN anywhere changes the catalog) plus docs/, since
+    # each card lists which documents cite it. doc_anchor.ref_files() excludes the OUTPUT by
+    # name so its bare tokens never count as citations.
+    Generator(
+        id="bn-catalog",
+        cmd=(sys.executable, "scripts/gen_bn_catalog.py"),
+        out_env="EVCC_GENDOC_OUT",
+        files=("docs/dev/reference/BN-CATALOG.generated.md",),
+        sources=("custom_components/", "src/", "scripts/", "harness/", "docs/"),
+        note="card catalog of every BN anchor — file, line, section name, who cites it",
+    ),
 )
 
 
