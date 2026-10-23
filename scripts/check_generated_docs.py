@@ -383,18 +383,22 @@ GENERATORS: tuple[Generator, ...] = (
     Generator(
         id="dreame-guide-keys",
         cmd=(sys.executable, "scripts/sync-dreame-guide-keys.py"),
-        # NOT gated: the SOURCE is the authoring fixture, which lives OUTSIDE git
-        # (durable/dreame-port-fixture/). CI cannot re-run this, so a drift check here would
-        # fail on every machine that is not Chris's. The gate that matters instead is inside
-        # the script — it REFUSES to write unless every key the backend can emit is present in
-        # all 18 packs — plus [DUK-7], which asserts the shipped English pack covers the
-        # emitted key set from inside the test suite.
+        # STILL map-only, but no longer for the old reason. Until 2026-10-22 the SOURCE lived
+        # outside git (durable/dreame-port-fixture/), so CI could not re-run this at all. The
+        # authored packs are in-tree now (authoring/guide-keys/), which makes gating POSSIBLE —
+        # it needs a `check_cmd` arm (this generator writes 18 JSONs plus a JS file, so the
+        # single-file out_env render-and-diff does not fit) and is a deliberate follow-on, not
+        # folded into the move. Until then the gate that matters is inside the script — it
+        # REFUSES to write unless every key the backend can emit is present in all 18 packs —
+        # plus [DUK-7], which asserts the shipped English pack covers the emitted key set from
+        # inside the test suite. The 17 non-English packs are therefore still checked only at
+        # write time; that is the hole the follow-on closes.
         gated=False,
         files=(
             "src/i18n/guide-keys.js",
             "custom_components/eufy_vacuum/frontend/guides/keys/*.json",
         ),
-        sources=("durable/dreame-port-fixture/resources/key-authoring/",),
+        sources=("authoring/guide-keys/",),
         regen="python scripts/sync-dreame-guide-keys.py",
         note="the 18 Dreame key packs -> bundled EN + served per-lang key JSON",
     ),

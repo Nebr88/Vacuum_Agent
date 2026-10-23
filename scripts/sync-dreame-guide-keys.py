@@ -19,9 +19,11 @@ Locale spelling follows the EXISTING served catalogs: `zh-Hans` / `zh-Hant` on d
 loader builds `${baseUrl}/${code}.json` from the card's resolved language. The authoring packs
 spell them `zh_hans` / `zh_hant`; the map below is the only place that seam is crossed.
 
-SOURCE: durable/dreame-port-fixture/resources/key-authoring/keys_<lang>.json — OUTSIDE git. That
-is the authoring home, with the manuals and the provenance. This script can therefore only be run
-on a machine that has the fixture; its OUTPUT is what ships and what is committed.
+SOURCE: authoring/guide-keys/keys_<lang>.json — IN the repository since 2026-10-22, so this
+script runs on any checkout and the shipped packs are reproducible without one machine. Until
+then it lived in durable/dreame-port-fixture/resources/key-authoring/, beside the manual corpus;
+only the authored packs moved (six quoted manual passages in the English notes were redacted
+to citations on the way), and authoring/guide-keys/README.md states the provenance line.
 
 GATE, and it can go red: every key `upkeep_keys.DREAME_UPKEEP_KEYS` can emit must be present in
 EVERY pack. A key emitted and not authored renders as its own name on the card — that is the
@@ -37,8 +39,10 @@ import sys
 import types
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIXTURE = os.path.join(os.path.dirname(os.path.dirname(ROOT)),
-                       "durable", "dreame-port-fixture", "resources", "key-authoring")
+# IN-TREE since 2026-10-22. It lived two directories above the repo, in durable/, beside the
+# manual corpus — which made the 18 shipped packs unreproducible from any other machine.
+# Only the authored packs moved; the corpus stays outside git on purpose.
+FIXTURE = os.path.join(ROOT, "authoring", "guide-keys")
 ADAPTERS = os.path.join(ROOT, "custom_components", "eufy_vacuum", "adapters")
 SERVED = os.path.join(ROOT, "custom_components", "eufy_vacuum", "frontend", "guides", "keys")
 BUNDLED = os.path.join(ROOT, "src", "i18n", "guide-keys.js")
@@ -119,7 +123,7 @@ def main():
         " * every miss; the other %d languages are served from frontend/guides/keys/<lang>.json.\n"
         " *\n"
         " * GENERATED — do not hand-edit. Run: python scripts/sync-dreame-guide-keys.py\n"
-        " * Source: durable/dreame-port-fixture/resources/key-authoring/keys_<lang>.json\n"
+        " * Source: authoring/guide-keys/keys_<lang>.json (in-tree; see its README)\n"
         " * Shape: GUIDE_KEYS[key] = \"complete sentence\"\n"
         " */\n" % (len(en), len(packs) - 1)
     )

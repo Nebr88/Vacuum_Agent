@@ -145,9 +145,12 @@ it a translated guide edit does not reach a browser that has already cached the 
 static path is registered `cache_headers=False`, which covers the integration's own serving
 but not what the browser already holds — the two are not substitutes.
 
-⚠ **Do not hand-edit the key packs or `guide-keys.js`.** Run
-`python scripts/sync-dreame-guide-keys.py`; the authoring source is
-`durable/dreame-port-fixture/resources/key-authoring/`.
+⚠ **Do not hand-edit the key packs or `guide-keys.js`.** Edit the authoring source in
+`authoring/guide-keys/keys_<lang>.json` and run `python scripts/sync-dreame-guide-keys.py`.
+That source is IN the repository as of 2026-10-22 — until then it lived two directories
+above the repo in `durable/`, beside the manual corpus, which made the 18 shipped packs
+unreproducible from any other machine. `authoring/guide-keys/README.md` states the
+provenance line: the sentences are authored, the notes cite manuals and never quote them.
 
 ### What a successor breaks
 
