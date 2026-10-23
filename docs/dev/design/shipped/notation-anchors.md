@@ -258,9 +258,12 @@ densest class in the tree had no threshold.
 - **SUBJECT.** The region can be named with a noun phrase that is a *subject a document
   could own* — `Battery`, `Setup services`, `Config entry lifecycle`, `Fault policy` — such
   that a reader searching the docs for that noun would expect to land here. A name that
-  states a *role* fails this test: the tree holds one, `battery/job_metrics.py:148`
-  "Helpers", and it is the weak form — it addresses nothing a document would cite. Name the
-  region by what it holds, not by what it is for.
+  states a *role* fails this test. The tree holds **four** named "Helpers" —
+  `battery/job_metrics.py:148`, `learning/estimator.py:205`,
+  `mapping/mapping_services.py:584`, `themes/services.py:139` — and each is the weak form:
+  it addresses nothing a document would cite. (The catalog below is how that count was
+  taken; the first draft of this rule said "one", from a sample.) Name the region by what
+  it holds, not by what it is for.
 - **CUT LINE.** If the file were split tomorrow, the knife would go here and the region
   would be a file. This is the load-bearing claim one paragraph up, turned into a test.
 
