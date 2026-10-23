@@ -136,6 +136,7 @@ Never wrong: a record of what was true then.
   [GENERATION_MAP](reference/GENERATION_MAP.md) — who generates what, and what to edit instead ·
   [ADAPTER-CONFIG](reference/ADAPTER-CONFIG.generated.md) ·
   [CAPABILITY-FLAGS](reference/CAPABILITY-FLAGS.generated.md) ·
+  [BN-CATALOG](reference/BN-CATALOG.generated.md) — card catalog of every break anchor ·
   [EVENTS](reference/EVENTS.md) ·
   [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) ·
   [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md) ·
