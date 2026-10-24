@@ -1,3 +1,0 @@
-# Test the actual SDK used by Home Assistant 2026.10.1. Production dependencies
-# remain owned by the upstream Roborock integration.
-python-roborock==7.12.0
